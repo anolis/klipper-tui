@@ -22,9 +22,14 @@ SERIES = [
 
 
 class TempGraphPanel(Vertical):
-    def __init__(self) -> None:
-        super().__init__(id="tempgraph-panel")
-        self.range_minutes = 20
+    def __init__(self, compact: bool = False) -> None:
+        # The compact variant sits on the dashboard: no controls, fixed window.
+        super().__init__(
+            id="tempgraph-dash" if compact else "tempgraph-panel",
+            classes="panel" if compact else "",
+        )
+        self.compact = compact
+        self.range_minutes = 10 if compact else 20
         self.show_targets = True
         self.temps: dict[str, deque[float]] = {
             k: deque(maxlen=MAX_SAMPLES) for k, _, _, _ in SERIES
@@ -37,10 +42,11 @@ class TempGraphPanel(Vertical):
     def compose(self) -> ComposeResult:
         yield Label("Temperature History", classes="panel-title")
 
-        with Horizontal(classes="btn-row compact-row"):
-            for r in RANGES:
-                yield Button(f"{r}m", id=f"tg-range-{r}")
-            yield Button("Targets", id="tg-targets")
+        if not self.compact:
+            with Horizontal(classes="btn-row compact-row"):
+                for r in RANGES:
+                    yield Button(f"{r}m", id=f"tg-range-{r}")
+                yield Button("Targets", id="tg-targets")
 
         yield Static("", id="tg-legend")
         yield Static("", id="tg-chart", markup=True)
@@ -99,7 +105,7 @@ class TempGraphPanel(Vertical):
         avail_w = chart.size.width or (self.size.width - 6)
         avail_h = chart.size.height or (self.size.height - 8)
         width = max(20, avail_w - 8)
-        height = max(4, avail_h - 2)
+        height = max(4, avail_h if self.compact else avail_h - 2)
 
         window = self.range_minutes * 60
         series = []
@@ -171,6 +177,10 @@ class TempGraphPanel(Vertical):
         for i, row in enumerate(rows):
             value = hi - (hi - lo) * (i / max(1, n - 1))
             out.append(f"[#9e9e9e]{value:6.1f}[/] [#2f2f2f]│[/]{row}")
+
+        if self.compact:
+            # No axis furniture on the dashboard; every row goes to the plot.
+            return out
 
         out.append(f"[#2f2f2f]       └{'─' * width}[/]")
         # Time runs left (oldest) to right (now).

@@ -22,6 +22,7 @@ from .panels.bedmesh import BedMeshPanel
 from .panels.console import ConsolePanel
 from .panels.extruder import ExtruderPanel
 from .panels.files import FilesPanel
+from .panels.position import PositionPanel
 from .panels.status import StatusPanel
 from .panels.temperature import PRESETS, TemperaturePanel
 from .panels.tempgraph import RANGES, TempGraphPanel
@@ -42,6 +43,7 @@ class KlipperTUI(App):
         ("b", "show_tab('mesh')", "Mesh"),
         ("w", "show_tab('webcam')", "Webcam"),
         ("g", "show_tab('graph')", "Graph"),
+        ("3", "show_tab('position')", "3D"),
         ("ctrl+e", "estop", "E-STOP"),
     ]
 
@@ -69,6 +71,7 @@ class KlipperTUI(App):
                     with Container(id="dash-grid"):
                         yield StatusPanel()
                         yield TemperaturePanel()
+                    yield TempGraphPanel(compact=True)
                     yield ExtruderPanel()
             with TabPane("Graph", id="graph"):
                 yield TempGraphPanel()
@@ -82,6 +85,8 @@ class KlipperTUI(App):
             with TabPane("Mesh", id="mesh"):
                 with VerticalScroll():
                     yield BedMeshPanel()
+            with TabPane("Position", id="position"):
+                yield PositionPanel()
             with TabPane("Webcam", id="webcam"):
                 yield WebcamPanel(self.webcam_url, self.renderer)
         yield Static("", id="statusbar")
@@ -109,7 +114,10 @@ class KlipperTUI(App):
             self.query_one(TemperaturePanel).update_status(status)
             self.query_one(ExtruderPanel).update_status(status)
             self.query_one(BedMeshPanel).update_status(status)
-            self.query_one(TempGraphPanel).append_live(status)
+            self.query_one(PositionPanel).update_status(status)
+            # Two instances: the dashboard's compact one and the Graph tab.
+            for graph in self.query(TempGraphPanel):
+                graph.append_live(status)
         except Exception:
             # Panels may not be mounted yet during the first status burst.
             pass
@@ -172,7 +180,8 @@ class KlipperTUI(App):
     async def _seed_graph(self) -> None:
         try:
             store = await self.client.temperature_store()
-            self.query_one(TempGraphPanel).seed(store)
+            for graph in self.query(TempGraphPanel):
+                graph.seed(store)
         except Exception:
             pass
 
@@ -294,14 +303,26 @@ class KlipperTUI(App):
         elif bid == "fl-cancel":
             await self._job("print_cancel", "Cancelled")
 
-        # Temperature graph
+        # Temperature graph (controls exist only on the full Graph tab)
         elif bid.startswith("tg-range-"):
-            self.query_one(TempGraphPanel).set_range(
+            self.query_one("#tempgraph-panel", TempGraphPanel).set_range(
                 int(bid.removeprefix("tg-range-"))
             )
         elif bid == "tg-targets":
-            on = self.query_one(TempGraphPanel).toggle_targets()
+            on = self.query_one("#tempgraph-panel", TempGraphPanel).toggle_targets()
             event.button.label = "Targets" if on else "No targets"
+
+        # 3D position
+        elif bid in ("ps-left", "ps-right", "ps-up", "ps-down"):
+            panel = self.query_one(PositionPanel)
+            deltas = {
+                "ps-left": (-0.25, 0.0), "ps-right": (0.25, 0.0),
+                "ps-up": (0.0, 0.15), "ps-down": (0.0, -0.15),
+            }
+            panel.rotate(*deltas[bid])
+        elif bid == "ps-spin":
+            spinning = self.query_one(PositionPanel).toggle_spin()
+            event.button.label = "Spin" if spinning else "Paused"
 
         # Webcam
         elif bid == "wc-toggle":

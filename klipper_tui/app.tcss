@@ -255,6 +255,33 @@ Input:focus {
     padding: 0 1;
 }
 
+/* Compact dashboard variant: fixed height, no controls. */
+/* Size to content so the panel's own padding cannot clip the chart. */
+#tempgraph-dash {
+    height: auto;
+}
+
+#tempgraph-dash #tg-chart {
+    height: 11;
+}
+
+/* --- 3D position --------------------------------------------------------- */
+
+#position-panel {
+    padding: 1 2;
+}
+
+#ps-readout {
+    padding: 0 0 1 0;
+}
+
+#ps-view {
+    height: 1fr;
+    background: #0d0d12;
+    border: round #ff9966;
+    padding: 0 1;
+}
+
 /* --- Webcam -------------------------------------------------------------- */
 
 #webcam-panel {

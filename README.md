@@ -31,6 +31,7 @@ Use `-p/--port` if Moonraker is not on 7125.
 | `b` | Mesh | Bed mesh calibration and a colour heightmap |
 | `w` | Webcam | Live MJPEG feed with pause and frame-rate control |
 | `g` | Graph | Temperature history for hotend and bed, with target lines |
+| `3` | Position | Rotating 3D wireframe of the build volume with the toolhead marked |
 
 `Ctrl+E` sends an emergency stop. `q` quits.
 
