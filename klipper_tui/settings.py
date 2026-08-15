@@ -6,6 +6,15 @@ import json
 import os
 from pathlib import Path
 
+# Conservative, widely-applicable starting points. Override them per printer
+# in the settings file rather than editing this list.
+DEFAULT_PRESETS: dict[str, tuple[int, int]] = {
+    "PLA": (200, 60),
+    "PETG": (240, 80),
+    "ABS": (240, 100),
+    "TPU": (220, 50),
+}
+
 # key -> (label, default visible on the dashboard)
 DASHBOARD_PANELS: dict[str, tuple[str, bool]] = {
     "status": ("Status", True),
@@ -31,6 +40,8 @@ class Settings:
     def __init__(self) -> None:
         self.theme: str | None = None
         self.webcam_url: str | None = None
+        self.presets: dict[str, tuple[int, int]] = dict(DEFAULT_PRESETS)
+        self.filament_length: float = 100.0
         self.dashboard: dict[str, bool] = {
             k: default for k, (_, default) in DASHBOARD_PANELS.items()
         }
@@ -48,6 +59,20 @@ class Settings:
             self.theme = data["theme"]
         if isinstance(data.get("webcam_url"), str):
             self.webcam_url = data["webcam_url"].strip() or None
+        presets = data.get("presets")
+        if isinstance(presets, dict):
+            parsed = {}
+            for name, pair in presets.items():
+                # Accept only [hotend, bed] pairs of sane numbers.
+                if (isinstance(pair, list) and len(pair) == 2
+                        and all(isinstance(v, (int, float)) for v in pair)):
+                    parsed[str(name)] = (int(pair[0]), int(pair[1]))
+            if parsed:
+                self.presets = parsed
+        length = data.get("filament_length")
+        if isinstance(length, (int, float)) and length > 0:
+            self.filament_length = float(length)
+
         saved = data.get("dashboard")
         if isinstance(saved, dict):
             # Only accept known keys, so a stale file cannot inject panels.
@@ -63,6 +88,8 @@ class Settings:
                 {
                     "theme": self.theme,
                     "webcam_url": self.webcam_url,
+                    "presets": {k: list(v) for k, v in self.presets.items()},
+                    "filament_length": self.filament_length,
                     "dashboard": self.dashboard,
                 },
                 indent=2,

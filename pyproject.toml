@@ -1,20 +1,49 @@
 [project]
 name = "klipper-tui"
 version = "0.1.0"
-description = "A terminal UI for Klipper 3D printers, styled after Mainsail"
+description = "A terminal UI for Klipper 3D printers, via Moonraker"
+readme = "README.md"
 requires-python = ">=3.10"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+keywords = ["klipper", "moonraker", "3d-printing", "tui", "textual"]
+authors = [{ name = "Bill Carson" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Printing",
+    "Topic :: System :: Monitoring",
+    "Typing :: Typed",
+]
 dependencies = [
     "textual>=8.0",
     "httpx>=0.27",
     "websockets>=13.0",
-    "textual-image>=0.12",
 ]
+
+[project.optional-dependencies]
+# Terminal image rendering for the webcam tab. Pulls in Pillow, so it is kept
+# optional for people who do not need it.
+webcam = ["textual-image>=0.12"]
+
+[project.urls]
+Homepage = "https://github.com/anolis/klipper-tui"
+Repository = "https://github.com/anolis/klipper-tui"
+Issues = "https://github.com/anolis/klipper-tui/issues"
 
 [project.scripts]
 klipper-tui = "klipper_tui.__main__:main"
 
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]

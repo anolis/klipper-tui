@@ -11,18 +11,20 @@ from textual.widgets import Button, Input, Label, Static
 # Klipper refuses to extrude below min_extrude_temp (default 170C).
 MIN_EXTRUDE_TEMP = 170
 
-# Long enough for a bowden tube; the printer's own max_extrude_only_distance
-# still caps any single move, so long runs are split into chunks.
-DEFAULT_LOAD_LENGTH = 1000
+# A direct-drive-safe default; bowden printers should raise it in settings.
+# The printer's own max_extrude_only_distance still caps any single move, so
+# long runs are split into chunks.
+DEFAULT_LOAD_LENGTH = 100
 DEFAULT_FAST = 50      # mm/s through the bowden
 DEFAULT_SLOW = 5       # mm/s through the melt zone
 MELT_ZONE = 60         # final mm of a load fed slowly
 
 
 class ExtruderPanel(Vertical):
-    def __init__(self) -> None:
+    def __init__(self, load_length: float = DEFAULT_LOAD_LENGTH) -> None:
         super().__init__(id="extruder-panel", classes="panel")
         self.max_extrude_only = 50.0
+        self.load_length = load_length
 
     def compose(self) -> ComposeResult:
         yield Label("Extruder", classes="panel-title")
@@ -37,7 +39,7 @@ class ExtruderPanel(Vertical):
 
         yield Label("Filament", classes="panel-title")
         with Horizontal(classes="btn-row"):
-            yield Input(value=str(DEFAULT_LOAD_LENGTH), id="ex-fil-len",
+            yield Input(value=f"{self.load_length:g}", id="ex-fil-len",
                         type="number")
             yield Input(value=str(DEFAULT_FAST), id="ex-fil-speed",
                         type="number")

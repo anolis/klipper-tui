@@ -10,25 +10,34 @@ from __future__ import annotations
 import io
 
 import httpx
-from PIL import Image as PILImage
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Label, Static
-from textual_image.widget import (
-    HalfcellImage,
-    Image,
-    SixelImage,
-    TGPImage,
-    UnicodeImage,
-)
 
-RENDERERS = {
-    "auto": Image,
-    "sixel": SixelImage,
-    "tgp": TGPImage,
-    "halfcell": HalfcellImage,
-    "unicode": UnicodeImage,
-}
+# Image rendering is an optional extra (it pulls in Pillow), so the rest of
+# the app must work without it.
+try:
+    from PIL import Image as PILImage
+    from textual_image.widget import (
+        HalfcellImage,
+        Image,
+        SixelImage,
+        TGPImage,
+        UnicodeImage,
+    )
+
+    RENDERERS = {
+        "auto": Image,
+        "sixel": SixelImage,
+        "tgp": TGPImage,
+        "halfcell": HalfcellImage,
+        "unicode": UnicodeImage,
+    }
+    AVAILABLE = True
+except ImportError:  # pragma: no cover - depends on install extras
+    PILImage = None
+    RENDERERS = {}
+    AVAILABLE = False
 
 FPS_CHOICES = [1, 2, 5, 10]
 
@@ -54,10 +63,22 @@ class WebcamPanel(Vertical):
                 yield Button(f"{fps} fps", id=f"wc-fps-{fps}")
 
         yield Static("", id="wc-info", classes="dim")
-        image_cls = RENDERERS[self.renderer_name]
-        yield image_cls(id="wc-image")
+        if AVAILABLE:
+            yield RENDERERS[self.renderer_name](id="wc-image")
+        else:
+            yield Static(
+                "[$warning]Webcam support is not installed.[/]\n\n"
+                "[$text-muted]Install the extra to enable it:[/]\n"
+                "    pip install 'klipper-tui\\[webcam]'",
+                id="wc-missing",
+            )
 
     def on_mount(self) -> None:
+        if not AVAILABLE:
+            self.query_one("#wc-info", Static).update(
+                "[$text-muted]image rendering unavailable[/]"
+            )
+            return
         self._client = httpx.AsyncClient(timeout=5.0)
         self._update_info()
         self._restart_timer()
@@ -74,7 +95,8 @@ class WebcamPanel(Vertical):
     def set_url(self, url: str) -> None:
         self.snapshot_url = url
         self._fail_count = 0
-        self._update_info()
+        if AVAILABLE:
+            self._update_info()
 
     def set_fps(self, fps: int) -> None:
         self.fps = fps
@@ -100,7 +122,7 @@ class WebcamPanel(Vertical):
             f"[$text-muted]{self.snapshot_url}[/]{extra}"
         )
 
-    def _fit(self, aspect: float) -> None:
+    def _fit(self, aspect: float) -> None:  # noqa: D401
         """Size the image widget so the frame keeps its shape.
 
         A terminal cell is roughly twice as tall as it is wide, so the cell
@@ -129,7 +151,7 @@ class WebcamPanel(Vertical):
         self._aspect = aspect
 
     async def _tick(self) -> None:
-        if not self.running or self._client is None:
+        if not AVAILABLE or not self.running or self._client is None:
             return
         try:
             resp = await self._client.get(self.snapshot_url)

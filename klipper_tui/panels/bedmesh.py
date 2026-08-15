@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Button, Label, Static
+from textual.widgets import Button, Input, Label, Static
 
 # Blue (low) -> green (nominal) -> red (high), matching Mainsail's heightmap.
 GRADIENT = [
@@ -15,8 +15,14 @@ GRADIENT = [
 
 
 class BedMeshPanel(Vertical):
+    # Rough wall-clock cost of one probe point, including travel. Only used
+    # for the estimate shown next to the probe count.
+    SECONDS_PER_POINT = 2.0
+
     def __init__(self) -> None:
         super().__init__(id="bedmesh-panel")
+        self.algorithm = "lagrange"
+        self._count_seeded = False
 
     def compose(self) -> ComposeResult:
         yield Label("Bed Mesh", classes="panel-title")
@@ -27,10 +33,28 @@ class BedMeshPanel(Vertical):
             yield Button("Save Config", id="bm-save", classes="-success")
             yield Button("Clear", id="bm-clear", classes="-danger")
 
+        with Horizontal(classes="btn-row"):
+            yield Input(placeholder="probe count, e.g. 10 or 10,15",
+                        id="bm-count")
+            yield Static("", id="bm-estimate", classes="setting-label")
+
         yield Static("", id="bm-info", classes="dim")
         yield Static("", id="heightmap")
 
     def update_status(self, status: dict) -> None:
+        cfg = (status.get("configfile") or {}).get("config") or {}
+        bm_cfg = cfg.get("bed_mesh") or {}
+        self.algorithm = str(bm_cfg.get("algorithm", "lagrange")).lower()
+        if not self._count_seeded:
+            configured = str(bm_cfg.get("probe_count", "")).replace(" ", "")
+            if configured:
+                try:
+                    self.query_one("#bm-count", Input).value = configured
+                    self._count_seeded = True
+                    self.refresh_estimate()
+                except Exception:
+                    pass
+
         mesh = status.get("bed_mesh", {})
         matrix = mesh.get("probed_matrix") or []
         profile = mesh.get("profile_name") or ""
@@ -68,6 +92,69 @@ class BedMeshPanel(Vertical):
         self.query_one("#heightmap", Static).update(
             self._render_heightmap(matrix, lo, hi)
         )
+
+    def parse_count(self) -> tuple[int, int] | None:
+        """Read the probe count field as an (x, y) pair."""
+        raw = self.query_one("#bm-count", Input).value.strip()
+        if not raw:
+            return None
+        parts = [p.strip() for p in raw.replace("x", ",").split(",") if p.strip()]
+        try:
+            values = [int(p) for p in parts]
+        except ValueError:
+            return None
+        if len(values) == 1:
+            return values[0], values[0]
+        if len(values) == 2:
+            return values[0], values[1]
+        return None
+
+    def validate_count(self, count: tuple[int, int]) -> str | None:
+        """Klipper's own constraints, checked before we send anything."""
+        x, y = count
+        if x < 3 or y < 3:
+            return "Probe count must be at least 3 per axis."
+        if self.algorithm == "lagrange" and max(x, y) > 6:
+            return ("Lagrange interpolation cannot exceed 6 per axis. "
+                    "Set algorithm: bicubic in printer.cfg for larger grids.")
+        if self.algorithm == "bicubic" and min(x, y) < 4 and max(x, y) > 6:
+            return ("Bicubic cannot combine 3 points on one axis with more "
+                    "than 6 on the other.")
+        return None
+
+    def refresh_estimate(self) -> None:
+        try:
+            widget = self.query_one("#bm-estimate", Static)
+        except Exception:
+            return
+        count = self.parse_count()
+        if count is None:
+            widget.update("[$text-muted]blank uses the configured count[/]")
+            return
+        problem = self.validate_count(count)
+        if problem:
+            widget.update(f"[$error]{problem}[/]")
+            return
+        points = count[0] * count[1]
+        seconds = points * self.SECONDS_PER_POINT
+        widget.update(
+            f"[$text-muted]{count[0]}×{count[1]} = [/]{points} points"
+            f"[$text-muted], roughly {self._duration(seconds)}[/]"
+        )
+
+    @staticmethod
+    def _duration(seconds: float) -> str:
+        if seconds < 90:
+            return f"{seconds:.0f}s"
+        if seconds < 5400:
+            return f"{seconds / 60:.0f} min"
+        return f"{seconds / 3600:.1f} hours"
+
+    def calibrate_gcode(self) -> str:
+        count = self.parse_count()
+        if count is None:
+            return "BED_MESH_CALIBRATE"
+        return f"BED_MESH_CALIBRATE PROBE_COUNT={count[0]},{count[1]}"
 
     def _render_heightmap(self, matrix: list[list[float]], lo: float, hi: float) -> str:
         rng = hi - lo or 1.0

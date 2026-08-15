@@ -6,13 +6,16 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Input, Label, Static
 
-# name -> (extruder target, bed target)
-PRESETS: dict[str, tuple[int, int]] = {
-    "PLA": (215, 65),
-    "PETG": (260, 80),
-    "ABS": (250, 90),
-    "TPU": (250, 80),
-}
+from ..settings import DEFAULT_PRESETS
+
+# Overridden from the settings file at start-up; see set_presets().
+PRESETS: dict[str, tuple[int, int]] = dict(DEFAULT_PRESETS)
+
+
+def set_presets(presets: dict[str, tuple[int, int]]) -> None:
+    """Replace the presets in place, so importers see the update."""
+    PRESETS.clear()
+    PRESETS.update(presets)
 
 
 class TemperaturePanel(Vertical):

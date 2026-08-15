@@ -369,3 +369,7 @@ Button.-muted {
     width: 1fr;
     min-width: 40;
 }
+
+#bm-count {
+    width: 28;
+}

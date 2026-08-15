@@ -6,8 +6,9 @@ exact line is written.
 """
 import asyncio
 import sys
+from pathlib import Path
 
-sys.path.insert(0, "/home/anolis/repos/klipper-tui")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from klipper_tui.app import KlipperTUI
 from klipper_tui.panels.console import ConsolePanel

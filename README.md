@@ -15,22 +15,26 @@ itself; this is a client you run on your own machine.
 
 - A printer running Klipper with Moonraker, reachable over the network.
 - Its address — the same host you type into your browser for Mainsail, e.g.
-  `10.3.10.29` or `mainsailos.local`.
+  `mainsailos.local` or `192.168.1.50`.
 - Python 3.10 or newer on the machine you run this from.
 
 ## Install
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -e .
+.venv/bin/pip install -e '.[webcam]'
 ```
+
+The `webcam` extra adds terminal image rendering (and pulls in Pillow). Leave
+it off with plain `pip install -e .` if you do not need the camera; the rest of
+the app works fine and the Webcam tab explains what is missing.
 
 ## Run
 
 ```bash
-.venv/bin/klipper-tui 10.3.10.29
+.venv/bin/klipper-tui mainsailos.local
 # or
-KLIPPER_HOST=10.3.10.29 .venv/bin/klipper-tui
+KLIPPER_HOST=mainsailos.local .venv/bin/klipper-tui
 ```
 
 Use `-p/--port` if Moonraker is not on 7125.
@@ -123,6 +127,43 @@ heightmap uses a fixed blue→green→red gradient, because it encodes measured
 values and needs to stay comparable between themes. The console resolves
 colours to concrete hex at write time, because `RichLog` renders Rich markup
 and cannot read `$token` styles.
+
+## Settings file
+
+Saved to `$XDG_CONFIG_HOME/klipper-tui/settings.json` (usually
+`~/.config/klipper-tui/settings.json`). The dashboard, theme, and webcam URL
+are written there by the UI. Two things are worth editing by hand:
+
+```json
+{
+  "presets": {
+    "PLA":  [215, 65],
+    "PETG": [260, 80],
+    "ABS":  [250, 90],
+    "TPU":  [250, 80]
+  },
+  "filament_length": 1000
+}
+```
+
+`presets` are the material buttons, as `[hotend, bed]` in °C. Add, remove, or
+rename them freely — the shipped values are deliberately conservative, so set
+them to whatever your filament actually wants.
+
+`filament_length` is the default load/unload distance in mm. The default of
+100 suits direct drive; for a bowden tube use roughly its length plus the
+extruder path (1000 is typical).
+
+## Bed mesh
+
+The probe count can be overridden per run from the Mesh tab — leave it blank
+to use the value from `printer.cfg`, or enter `10` or `10,15`. The estimated
+duration is shown as you type, which matters: a 100×100 grid is 10,000 probe
+points and takes several hours.
+
+Klipper's own limits are checked before anything is sent — a minimum of 3 per
+axis, `lagrange` cannot exceed 6, and `bicubic` needs at least 4 per axis. For
+grids larger than 6, set `algorithm: bicubic` in your `[bed_mesh]` section.
 
 ## Dashboard
 

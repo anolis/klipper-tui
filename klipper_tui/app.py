@@ -26,7 +26,7 @@ from .panels.position import PositionPanel
 from .panels.preheat import PreheatScreen
 from .panels.status import StatusPanel
 from .panels.tuning import FACTORS, TuningPanel
-from .panels.temperature import PRESETS, TemperaturePanel
+from .panels.temperature import PRESETS, TemperaturePanel, set_presets
 from .panels.tempgraph import RANGES, TempGraphPanel
 from .panels.toolhead import STEP_SIZES, ToolheadPanel
 from .panels.settings import SettingsPanel
@@ -67,6 +67,7 @@ class KlipperTUI(App):
         self.default_webcam_url = f"http://{host}/webcam/?action=snapshot"
         self.renderer = renderer
         self.settings = Settings()
+        set_presets(self.settings.presets)
         # An explicit flag wins over the saved override, which wins over the
         # URL derived from the host.
         self.webcam_url = (
@@ -126,7 +127,7 @@ class KlipperTUI(App):
         if key == "tuning":
             return TuningPanel()
         if key == "extruder":
-            return ExtruderPanel()
+            return ExtruderPanel(self.settings.filament_length)
         if key == "toolhead":
             return ToolheadPanel()
         if key == "bedmesh":
@@ -334,6 +335,12 @@ class KlipperTUI(App):
         event.input.value = ""
         await self.send(cmd)
 
+    @on(Input.Changed, "#bm-count")
+    def _mesh_count_changed(self, event: Input.Changed) -> None:
+        panel = self._owner(event.input, BedMeshPanel)
+        if panel is not None:
+            panel.refresh_estimate()
+
     @on(Input.Submitted, "#tn-speed-input")
     @on(Input.Submitted, "#tn-flow-input")
     async def _tuning_submit(self, event: Input.Submitted) -> None:
@@ -539,7 +546,14 @@ class KlipperTUI(App):
 
         # Bed mesh
         elif bid == "bm-calibrate":
-            await self.send("BED_MESH_CALIBRATE")
+            panel = self._owner(event.button, BedMeshPanel)
+            count = panel.parse_count()
+            if count is not None:
+                problem = panel.validate_count(count)
+                if problem:
+                    self.notify(problem, severity="error", title="Probe count")
+                    return
+            await self.send(panel.calibrate_gcode())
         elif bid == "bm-load":
             await self.send("BED_MESH_PROFILE LOAD=default")
         elif bid == "bm-save":
