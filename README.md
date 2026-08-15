@@ -161,6 +161,9 @@ to use the value from `printer.cfg`, or enter `10` or `10,15`. The estimated
 duration is shown as you type, which matters: a 100×100 grid is 10,000 probe
 points and takes several hours.
 
+If the axes are not homed, Calibrate offers to home first and starts probing
+as soon as homing finishes, rather than failing with "Must home axis first".
+
 Klipper's own limits are checked before anything is sent — a minimum of 3 per
 axis, `lagrange` cannot exceed 6, and `bicubic` needs at least 4 per axis. For
 grids larger than 6, set `algorithm: bicubic` in your `[bed_mesh]` section.

@@ -19,6 +19,7 @@ from textual.widgets import (
 
 from .moonraker import MoonrakerClient, MoonrakerError
 from .panels.bedmesh import BedMeshPanel
+from .panels.confirm import ConfirmScreen
 from .panels.console import ConsolePanel
 from .panels.extruder import ExtruderPanel
 from .panels.files import FilesPanel
@@ -547,19 +548,59 @@ class KlipperTUI(App):
         # Bed mesh
         elif bid == "bm-calibrate":
             panel = self._owner(event.button, BedMeshPanel)
-            count = panel.parse_count()
-            if count is not None:
-                problem = panel.validate_count(count)
-                if problem:
-                    self.notify(problem, severity="error", title="Probe count")
-                    return
-            await self.send(panel.calibrate_gcode())
+            if panel is not None:
+                # Runs in a worker so the homing prompt can be awaited.
+                self.run_worker(self._calibrate_mesh(panel), exclusive=True)
         elif bid == "bm-load":
             await self.send("BED_MESH_PROFILE LOAD=default")
         elif bid == "bm-save":
             await self.send("SAVE_CONFIG")
         elif bid == "bm-clear":
             await self.send("BED_MESH_CLEAR")
+
+    async def _calibrate_mesh(self, panel: BedMeshPanel) -> None:
+        """Probe the bed, homing first if the axes are not referenced."""
+        count = panel.parse_count()
+        if count is not None:
+            problem = panel.validate_count(count)
+            if problem:
+                self.notify(problem, severity="error", title="Probe count")
+                return
+
+        homed = (self.client.status.get("toolhead") or {}).get("homed_axes", "")
+        missing = [a for a in "xyz" if a not in homed]
+        prefix = ""
+        if missing:
+            names = ", ".join(a.upper() for a in missing)
+            ok = await self.push_screen_wait(ConfirmScreen(
+                "Axes not homed",
+                f"Bed mesh calibration needs all axes homed, and "
+                f"{names} {'is' if len(missing) == 1 else 'are'} not. "
+                f"Home now and start the mesh once homing finishes?",
+                confirm_label="Home and calibrate",
+            ))
+            if not ok:
+                self._console_write("write_system", "calibration cancelled")
+                return
+            # One script, so probing begins as soon as G28 returns.
+            prefix = "G28\n"
+
+        points = (count[0] * count[1]) if count else 100
+        # Probing is slow and a large grid runs for hours; allow for it.
+        timeout = max(900.0, points * panel.SECONDS_PER_POINT * 3 + 600)
+
+        script = prefix + panel.calibrate_gcode()
+        self._console_write(
+            "write_system",
+            f"{'homing then ' if prefix else ''}probing "
+            f"{points} points (timeout {timeout / 60:.0f} min)",
+        )
+        try:
+            await self.client.gcode(script, timeout=timeout)
+            self.notify("Bed mesh complete", title="Bed mesh")
+        except MoonrakerError as exc:
+            self._console_write("write_system", f"error: {exc}")
+            self.notify(str(exc), severity="error", title="Bed mesh")
 
     async def _filament(self, load: bool, panel: ExtruderPanel) -> None:
         """Load or unload, preheating first if the nozzle is too cold."""

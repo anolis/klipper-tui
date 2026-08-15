@@ -373,3 +373,15 @@ Button.-muted {
 #bm-count {
     width: 28;
 }
+
+ConfirmScreen {
+    align: center middle;
+}
+
+#confirm-box {
+    width: 68;
+    height: auto;
+    padding: 1 2;
+    background: $surface;
+    border: thick $warning;
+}
