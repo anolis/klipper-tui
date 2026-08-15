@@ -110,7 +110,7 @@ Tab.-active {
 TabPane {
     padding: 1;
     height: 1fr;
-    overflow-y: auto;
+    overflow: hidden;
 }
 
 /* --- Dashboard layout ---------------------------------------------------- */
@@ -274,6 +274,7 @@ PreheatScreen {
 
 #position-panel {
     padding: 1 2;
+    height: auto;
 }
 
 #ps-readout {
