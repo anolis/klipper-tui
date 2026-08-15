@@ -29,8 +29,28 @@ Use `-p/--port` if Moonraker is not on 7125.
 | `m` | Move | Homing and jog controls with selectable step size |
 | `f` | Files | G-code file browser plus print/pause/resume/cancel |
 | `b` | Mesh | Bed mesh calibration and a colour heightmap |
+| `w` | Webcam | Live MJPEG feed with pause and frame-rate control |
 
 `Ctrl+E` sends an emergency stop. `q` quits.
+
+## Webcam rendering
+
+The webcam pulls MJPEG snapshots and draws them with
+[textual-image](https://pypi.org/project/textual-image/). How good it looks
+depends entirely on the terminal:
+
+| Terminal | Best available | Flag |
+| --- | --- | --- |
+| xterm (`xterm -ti vt340`), konsole, foot, contour, mlterm, wezterm | true sixel | `--render sixel` |
+| kitty, ghostty, wezterm | Kitty graphics protocol | `--render tgp` |
+| gnome-terminal, most VTE terminals | unicode half-blocks | `--render halfcell` |
+
+`--render auto` (the default) detects support and picks the best option.
+**gnome-terminal has no sixel support**, so it falls back to half-blocks;
+run under konsole or `xterm -ti vt340` for a true sixel image.
+
+Override the URL with `--webcam-url` or `$KLIPPER_WEBCAM_URL` if the snapshot
+endpoint is not at `http://<host>/webcam/?action=snapshot`.
 
 ## Notes
 

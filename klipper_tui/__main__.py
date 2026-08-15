@@ -23,8 +23,21 @@ def main() -> None:
         default=int(os.environ.get("KLIPPER_PORT", 7125)),
         help="Moonraker port (default: 7125)",
     )
+    parser.add_argument(
+        "--webcam-url",
+        default=os.environ.get("KLIPPER_WEBCAM_URL"),
+        help="MJPEG snapshot URL (default: http://<host>/webcam/?action=snapshot)",
+    )
+    parser.add_argument(
+        "--render",
+        choices=["auto", "sixel", "tgp", "halfcell", "unicode"],
+        default=os.environ.get("KLIPPER_RENDER", "auto"),
+        help="Webcam renderer. 'auto' detects terminal support; force 'sixel' "
+             "if detection fails, 'unicode'/'halfcell' for terminals without "
+             "graphics support (e.g. gnome-terminal).",
+    )
     args = parser.parse_args()
-    KlipperTUI(args.host, args.port).run()
+    KlipperTUI(args.host, args.port, args.webcam_url, args.render).run()
 
 
 if __name__ == "__main__":

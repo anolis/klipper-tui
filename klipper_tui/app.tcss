@@ -20,7 +20,8 @@ Footer {
 .panel {
     background: #1e1e1e;
     border: round #2f2f2f;
-    padding: 0 1;
+    padding: 1 2;
+    margin: 0 0 1 0;
     height: auto;
 }
 
@@ -60,9 +61,11 @@ Footer {
 /* --- Buttons ------------------------------------------------------------- */
 
 Button {
-    min-width: 8;
+    min-width: 10;
     height: 3;
     border: none;
+    margin: 0 1 1 0;
+    padding: 0 2;
     background: #2a2a2a;
     color: #e0e0e0;
 }
@@ -199,10 +202,16 @@ Input:focus {
 .btn-row Input {
     width: 16;
     height: 3;
+    margin: 0 1 1 0;
 }
 
-.btn-row Button {
-    margin: 0 1 0 0;
+/* Rows of many short buttons (presets, jog steps) need tighter chrome or the
+   last button overflows the panel. */
+.compact-row Button {
+    min-width: 7;
+    width: auto;
+    padding: 0 1;
+    margin: 0 1 1 0;
 }
 
 .step-row {
@@ -216,10 +225,6 @@ Input:focus {
     content-align: left middle;
 }
 
-.step-row Button {
-    margin: 0 1 0 0;
-}
-
 .spacer {
     width: 1fr;
 }
@@ -231,6 +236,18 @@ Input:focus {
     background: #1e1e1e;
     border: round #2f2f2f;
     padding: 1;
+}
+
+/* --- Webcam -------------------------------------------------------------- */
+
+#webcam-panel {
+    padding: 1 2;
+}
+
+#wc-image {
+    width: 100%;
+    height: 1fr;
+    border: round #2f2f2f;
 }
 
 /* --- Files --------------------------------------------------------------- */

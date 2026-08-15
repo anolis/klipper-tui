@@ -25,6 +25,7 @@ from .panels.files import FilesPanel
 from .panels.status import StatusPanel
 from .panels.temperature import PRESETS, TemperaturePanel
 from .panels.toolhead import STEP_SIZES, ToolheadPanel
+from .panels.webcam import FPS_CHOICES, WebcamPanel
 
 
 class KlipperTUI(App):
@@ -38,13 +39,22 @@ class KlipperTUI(App):
         ("m", "show_tab('move')", "Move"),
         ("f", "show_tab('files')", "Files"),
         ("b", "show_tab('mesh')", "Mesh"),
+        ("w", "show_tab('webcam')", "Webcam"),
         ("ctrl+e", "estop", "E-STOP"),
     ]
 
-    def __init__(self, host: str, port: int = 7125) -> None:
+    def __init__(
+        self,
+        host: str,
+        port: int = 7125,
+        webcam_url: str | None = None,
+        renderer: str = "auto",
+    ) -> None:
         super().__init__()
         self.client = MoonrakerClient(host, port)
         self.sub_title = f"{host}:{port}"
+        self.webcam_url = webcam_url or f"http://{host}/webcam/?action=snapshot"
+        self.renderer = renderer
         self._ws_task: asyncio.Task | None = None
 
     # -- layout ---------------------------------------------------------------
@@ -68,6 +78,8 @@ class KlipperTUI(App):
             with TabPane("Mesh", id="mesh"):
                 with VerticalScroll():
                     yield BedMeshPanel()
+            with TabPane("Webcam", id="webcam"):
+                yield WebcamPanel(self.webcam_url, self.renderer)
         yield Static("", id="statusbar")
         yield Footer()
 
@@ -268,6 +280,13 @@ class KlipperTUI(App):
             await self._job("print_resume", "Resumed")
         elif bid == "fl-cancel":
             await self._job("print_cancel", "Cancelled")
+
+        # Webcam
+        elif bid == "wc-toggle":
+            running = self.query_one(WebcamPanel).toggle()
+            event.button.label = "Pause" if running else "Resume"
+        elif bid.startswith("wc-fps-"):
+            self.query_one(WebcamPanel).set_fps(int(bid.removeprefix("wc-fps-")))
 
         # Bed mesh
         elif bid == "bm-calibrate":

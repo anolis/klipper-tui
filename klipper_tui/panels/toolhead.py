@@ -33,7 +33,7 @@ class ToolheadPanel(Vertical):
             yield Button("Z-", id="th-z-neg")
             yield Button("Z+", id="th-z-pos")
 
-        with Horizontal(classes="step-row"):
+        with Horizontal(classes="step-row compact-row"):
             yield Static("", id="th-step-label")
             for size in STEP_SIZES:
                 yield Button(f"{size:g}mm", id=f"th-step-{size:g}".replace(".", "_"))

@@ -30,7 +30,7 @@ class TemperaturePanel(Vertical):
             yield Input(placeholder="bed °C", id="tp-in-bed", type="integer")
             yield Button("Set", id="tp-set", classes="-primary")
 
-        with Horizontal(classes="btn-row"):
+        with Horizontal(classes="btn-row compact-row"):
             for name in PRESETS:
                 yield Button(name, id=f"tp-preset-{name}")
             yield Button("Cool", id="tp-cooldown", classes="-danger")
