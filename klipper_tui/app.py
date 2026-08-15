@@ -76,6 +76,9 @@ class KlipperTUI(App):
         )
         self._theme_name = self.settings.theme or theme
         self._last_temp_store: dict | None = None
+        # State captured when Klippy goes away, offered back when it returns.
+        self._klippy_ready = False
+        self._restore: dict | None = None
         self._last_files: list | None = None
         self._ws_task: asyncio.Task | None = None
 
@@ -184,7 +187,8 @@ class KlipperTUI(App):
     def on_mount(self) -> None:
         # Build once the first paint is done, so the tab panes exist.
         self.call_after_refresh(
-            lambda: self.run_worker(self.rebuild_dashboard(), exclusive=True)
+            lambda: self.run_worker(
+                self.rebuild_dashboard(), group="dashboard", exclusive=True)
         )
 
         self.client.on_status(self._handle_status)
@@ -239,6 +243,7 @@ class KlipperTUI(App):
             pass
 
     def _handle_conn(self, connected: bool, klippy_state: str) -> None:
+        self._track_restart(connected, klippy_state)
         try:
             bar = self.query_one("#statusbar", Static)
         except Exception:
@@ -250,10 +255,85 @@ class KlipperTUI(App):
                 f"{klippy_state}"
             )
             if klippy_state == "ready":
-                self.refresh_files()
-                self.run_worker(self._seed_graph())
+                # Same reason as _start_restore: this runs from the
+                # websocket task, so hop onto the message pump first.
+                self.call_later(self._on_klippy_ready)
         else:
             bar.update("[$error]●[/] disconnected — retrying…")
+
+    # -- restoring state across a restart -------------------------------------
+
+    def _track_restart(self, connected: bool, klippy_state: str) -> None:
+        """Notice Klippy leaving and returning, so state can be offered back.
+
+        SAVE_CONFIG, FIRMWARE_RESTART, and a power cycle all look the same from
+        here: heater targets are cleared and the axes lose their homing.
+        """
+        now_ready = connected and klippy_state == "ready"
+        if self._klippy_ready and not now_ready:
+            self._restore = self._capture_restore()
+        elif now_ready and not self._klippy_ready and self._restore:
+            # Posted to the message pump: this runs from the websocket task,
+            # where starting a worker directly is not reliable.
+            self.call_later(self._start_restore)
+        self._klippy_ready = now_ready
+
+    def _start_restore(self) -> None:
+        # push_screen_wait requires a worker context, so this cannot be a
+        # plain task. Its own group: exclusive workers only cancel within a
+        # group, and the file refresh fires at the same moment.
+        self.run_worker(self._offer_restore(), group="restore", exclusive=True)
+
+    def _capture_restore(self) -> dict | None:
+        status = self.client.status
+        extruder = round((status.get("extruder") or {}).get("target") or 0)
+        bed = round((status.get("heater_bed") or {}).get("target") or 0)
+        homed = (status.get("toolhead") or {}).get("homed_axes", "") or ""
+        if not extruder and not bed and not homed:
+            return None  # nothing worth restoring
+        return {"extruder": extruder, "bed": bed, "homed": homed}
+
+    async def _offer_restore(self) -> None:
+        snapshot, self._restore = self._restore, None
+        if not snapshot:
+            return
+
+        parts = []
+        if snapshot["extruder"]:
+            parts.append(f"hotend to {snapshot['extruder']}°C")
+        if snapshot["bed"]:
+            parts.append(f"bed to {snapshot['bed']}°C")
+        if snapshot["homed"]:
+            parts.append("home all axes")
+        if not parts:
+            return
+
+        listed = ", ".join(parts[:-1]) + (" and " if len(parts) > 1 else "") + parts[-1]
+        ok = await self.push_screen_wait(ConfirmScreen(
+            "Printer restarted",
+            f"Klipper restarted, which cleared the heaters and homing. "
+            f"Restore what was set before: {listed}?",
+            confirm_label="Restore",
+        ))
+        if not ok:
+            self._console_write("write_system", "restore declined")
+            return
+
+        lines = []
+        if snapshot["extruder"]:
+            lines.append(f"M104 S{snapshot['extruder']}")
+        if snapshot["bed"]:
+            lines.append(f"M140 S{snapshot['bed']}")
+        if snapshot["homed"]:
+            lines.append("G28")
+        self._console_write("write_system", "restoring previous state")
+        try:
+            # Homing after a restart takes a while; heaters are set, not waited on.
+            await self.client.gcode("\n".join(lines), timeout=300)
+            self.notify("Previous state restored", title="Restore")
+        except MoonrakerError as exc:
+            self._console_write("write_system", f"error: {exc}")
+            self.notify(str(exc), severity="error", title="Restore")
 
     # -- helpers --------------------------------------------------------------
 
@@ -321,8 +401,12 @@ class KlipperTUI(App):
         except MoonrakerError as exc:
             self.notify(str(exc), severity="error")
 
+    def _on_klippy_ready(self) -> None:
+        self.refresh_files()
+        self.run_worker(self._seed_graph())
+
     def refresh_files(self) -> None:
-        self.run_worker(self._load_files(), exclusive=True)
+        self.run_worker(self._load_files(), group="files", exclusive=True)
 
     async def _seed_graph(self) -> None:
         try:
@@ -453,8 +537,8 @@ class KlipperTUI(App):
             # Runs in a worker so the preheat dialog can be awaited.
             owner = self._owner(event.button, ExtruderPanel)
             if owner is not None:
-                self.run_worker(
-                    self._filament(bid == "ex-load", owner), exclusive=True)
+                self.run_worker(self._filament(bid == "ex-load", owner),
+                                group="filament", exclusive=True)
         elif bid == "ex-rt-apply":
             length = self.query_one("#ex-rt-len", Input).value.strip()
             speed = self.query_one("#ex-rt-speed", Input).value.strip()
@@ -514,7 +598,8 @@ class KlipperTUI(App):
             on = self.settings.toggle(key)
             for panel in self.query(SettingsPanel):
                 panel.refresh_toggles()
-            self.run_worker(self.rebuild_dashboard(), exclusive=True)
+            self.run_worker(
+                self.rebuild_dashboard(), group="dashboard", exclusive=True)
             label = DASHBOARD_PANELS.get(key, (key, False))[0]
             self.notify(
                 f"{label} {'added to' if on else 'removed from'} dashboard",
@@ -568,7 +653,8 @@ class KlipperTUI(App):
             panel = self._owner(event.button, BedMeshPanel)
             if panel is not None:
                 # Runs in a worker so the homing prompt can be awaited.
-                self.run_worker(self._calibrate_mesh(panel), exclusive=True)
+                self.run_worker(self._calibrate_mesh(panel),
+                                group="mesh", exclusive=True)
         elif bid == "bm-load":
             await self.send("BED_MESH_PROFILE LOAD=default")
         elif bid == "bm-save":

@@ -128,6 +128,13 @@ values and needs to stay comparable between themes. The console resolves
 colours to concrete hex at write time, because `RichLog` renders Rich markup
 and cannot read `$token` styles.
 
+## After a restart
+
+`SAVE_CONFIG`, `FIRMWARE_RESTART`, and a power cycle all clear the heater
+targets and lose homing. When Klipper comes back, klipper-tui offers to restore
+what was set before — heater targets and re-homing — and does nothing unless
+you accept. Nothing is offered if the printer was already cold and unhomed.
+
 ## Settings file
 
 Saved to `$XDG_CONFIG_HOME/klipper-tui/settings.json` (usually
