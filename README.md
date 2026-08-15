@@ -1,7 +1,22 @@
 # klipper-tui
 
-A terminal UI for Klipper 3D printers, talking to [Moonraker](https://moonraker.readthedocs.io/)
-over its JSON-RPC websocket. Styled to follow Mainsail's dark theme and panel layout.
+A terminal UI for Klipper 3D printers. It does most of what you would open
+Mainsail or Fluidd for — watch temperatures, run a print, jog the toolhead,
+send gcode, look at the bed mesh, check the webcam — without leaving the
+terminal.
+
+It talks to [Moonraker](https://moonraker.readthedocs.io/), the API server that
+already runs alongside Klipper on your printer's host (usually a Raspberry Pi).
+Moonraker is what Mainsail and Fluidd talk to as well, so if either of those
+works in your browser, this will work too. Nothing is installed on the printer
+itself; this is a client you run on your own machine.
+
+**What you need**
+
+- A printer running Klipper with Moonraker, reachable over the network.
+- Its address — the same host you type into your browser for Mainsail, e.g.
+  `10.3.10.29` or `mainsailos.local`.
+- Python 3.10 or newer on the machine you run this from.
 
 ## Install
 
@@ -39,11 +54,75 @@ Use `-p/--port` if Moonraker is not on 7125.
 ## Themes
 
 Ships with `ominous` (default, dark with burgundy), `mainsail`, and `forge`,
-plus a selection of Textual's built-ins. Pick one with `--theme`, cycle with
-`t`, or use the command palette (`ctrl+p`). The choice is saved.
+plus a selection of Textual's built-ins. Choose one on the Settings tab, pass
+`--theme`, press `t` to cycle, or use the command palette (`ctrl+p`). The
+choice is saved.
 
 Colours come from theme tokens rather than literals, so panels, charts, and
 the 3D view all follow the active theme.
+
+### Writing your own
+
+Themes live in `klipper_tui/theming.py`. A theme is a Textual `Theme` plus a
+`variables` dict carrying the colours specific to this app. Copy an existing
+one and change the values:
+
+```python
+MIDNIGHT = Theme(
+    name="midnight",
+    dark=True,
+    background="#080b12",   # furthest back: the screen
+    surface="#111722",      # panel cards sit on this
+    panel="#1a2130",        # button faces, borders derive from it
+    primary="#2f5d8a",      # filled buttons, progress bars
+    secondary="#24455f",
+    accent="#4d8fc4",       # panel titles, active tab, focused input
+    foreground="#d3dae6",   # body text
+    success="#4a7c59",      # homed axes, "at temperature"
+    warning="#c08238",      # unhomed, cold nozzle, paused
+    error="#cf3b3b",        # errors, e-stop, disconnected
+    variables={
+        "hot": "#e0754f",       # extruder trace on the graph
+        "hot-dim": "#6b3020",   # its target line
+        "bed": "#6f9bd1",       # bed trace
+        "bed-dim": "#2f4a6b",   # its target line
+        "vol-frame": "#4d8fc4", # build volume wireframe
+        "vol-floor": "#4a5468", # bed plane and grid
+        "vol-head": "#e8c25a",  # toolhead marker
+        "vol-drop": "#cf6b5a",  # drop line and floor crosshair
+    },
+)
+```
+
+Then add it to the registry near the bottom of the file:
+
+```python
+CUSTOM = {t.name: t for t in (OMINOUS, MAINSAIL, FORGE, MIDNIGHT)}
+```
+
+That is all — it appears on the Settings tab, in `--theme`, and in the `t`
+cycle. To make it the default, set `DEFAULT_THEME = "midnight"`.
+
+### Notes
+
+The eight `variables` entries are required. A theme missing them will fail to
+render the graph or the 3D view, which is why built-in Textual themes get them
+backfilled from `NEUTRAL_DOMAIN` when they are registered.
+
+Textual derives a large set of tokens from the ones above — `$panel-lighten-2`
+for borders, `$text-muted` for labels, `$surface-darken-1` for the chart
+background, and so on — so the eleven colours here style the whole app.
+
+Pick `background`, `surface`, and `panel` as three steps of the same hue
+rather than pure greys; the separation between them is what makes panels read
+as cards. `accent` should be legible against `surface`, since panel titles use
+it.
+
+Two colours deliberately do **not** come from the theme. The bed mesh
+heightmap uses a fixed blue→green→red gradient, because it encodes measured
+values and needs to stay comparable between themes. The console resolves
+colours to concrete hex at write time, because `RichLog` renders Rich markup
+and cannot read `$token` styles.
 
 ## Dashboard
 
@@ -68,8 +147,52 @@ depends entirely on the terminal:
 **gnome-terminal has no sixel support**, so it falls back to half-blocks;
 run under konsole or `xterm -ti vt340` for a true sixel image.
 
-Override the URL with `--webcam-url` or `$KLIPPER_WEBCAM_URL` if the snapshot
-endpoint is not at `http://<host>/webcam/?action=snapshot`.
+### Pointing it at your camera
+
+The webcam tab asks your printer for one still image at a time and redraws it,
+so it needs a URL that returns **a single JPEG** each time it is fetched — a
+"snapshot" URL. It is not a video stream.
+
+By default it tries:
+
+```
+http://<your-printer-host>/webcam/?action=snapshot
+```
+
+which is where MainsailOS and FluiddPi put it. If your camera shows up in
+Mainsail, that address is usually already correct and you do not need to change
+anything.
+
+**If the tab shows a 404 or a connection error**, set the URL on the Settings
+tab (`s`) — type it in, press Apply, and it is saved for next time. You can
+also pass `--webcam-url`, or set `$KLIPPER_WEBCAM_URL`. Reset returns to the
+default.
+
+**Finding the right URL.** In Mainsail, go to Settings → Webcams and look at
+the configured camera; the "Snapshot URL" field there is exactly what this
+wants. Failing that, these are the common ones — try each in a browser, and use
+whichever shows a still photo:
+
+| Setup | Snapshot URL |
+| --- | --- |
+| MainsailOS / FluiddPi (default) | `http://HOST/webcam/?action=snapshot` |
+| Second camera on the same host | `http://HOST/webcam2/?action=snapshot` |
+| mjpg-streamer on its own port | `http://HOST:8080/?action=snapshot` |
+| crowsnest / ustreamer | `http://HOST/webcam/snapshot` |
+| Generic IP camera | often `http://HOST/snapshot.jpg` or `/jpg/image.jpg` |
+
+Replace `HOST` with your printer's address. A URL ending in `action=stream` is
+the *video* feed — this app wants `action=snapshot` instead.
+
+**A camera bound to localhost.** Some setups run the camera server listening on
+`127.0.0.1` only, so it is reachable from the printer but not from your desktop.
+Those work in Mainsail because a proxy on the printer forwards `/webcam/` to it.
+Use the proxied `http://HOST/webcam/?action=snapshot` form rather than the
+port-specific one in that case.
+
+**Frame rate** is set with the buttons on the tab (1–10 fps). Snapshots are
+re-fetched and re-encoded every frame, so higher rates cost bandwidth and
+redraw time; 2 fps is plenty for watching a print.
 
 ## Notes
 

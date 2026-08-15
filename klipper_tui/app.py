@@ -64,9 +64,14 @@ class KlipperTUI(App):
         super().__init__()
         self.client = MoonrakerClient(host, port)
         self.sub_title = f"{host}:{port}"
-        self.webcam_url = webcam_url or f"http://{host}/webcam/?action=snapshot"
+        self.default_webcam_url = f"http://{host}/webcam/?action=snapshot"
         self.renderer = renderer
         self.settings = Settings()
+        # An explicit flag wins over the saved override, which wins over the
+        # URL derived from the host.
+        self.webcam_url = (
+            webcam_url or self.settings.webcam_url or self.default_webcam_url
+        )
         self._theme_name = self.settings.theme or theme
         self._last_temp_store: dict | None = None
         self._last_files: list | None = None
@@ -101,7 +106,10 @@ class KlipperTUI(App):
                 yield WebcamPanel(self.webcam_url, self.renderer)
             with TabPane("Settings", id="settings"):
                 with VerticalScroll():
-                    yield SettingsPanel(self.settings)
+                    yield SettingsPanel(
+                        self.settings, self.webcam_url,
+                        self.default_webcam_url,
+                    )
         yield Static("", id="statusbar")
         yield Footer()
 
@@ -268,16 +276,23 @@ class KlipperTUI(App):
     def action_show_tab(self, tab: str) -> None:
         self.query_one(TabbedContent).active = tab
 
+    def set_theme(self, name: str) -> None:
+        if name not in all_theme_names():
+            return
+        self.theme = name
+        self.settings.theme = name
+        self.settings.save()
+        for panel in self.query(SettingsPanel):
+            panel.refresh_themes(name)
+        self.notify(name, title="Theme")
+
     def action_next_theme(self) -> None:
         names = all_theme_names()
         try:
             index = names.index(self.theme)
         except ValueError:
             index = -1
-        self.theme = names[(index + 1) % len(names)]
-        self.settings.theme = self.theme
-        self.settings.save()
-        self.notify(self.theme, title="Theme")
+        self.set_theme(names[(index + 1) % len(names)])
 
     async def action_estop(self) -> None:
         try:
@@ -447,6 +462,27 @@ class KlipperTUI(App):
             event.button.label = "Targets" if on else "No targets"
 
         # Settings
+        elif bid in ("st-webcam-apply", "st-webcam-reset"):
+            panel = self._owner(event.button, SettingsPanel)
+            field = panel.query_one("#st-webcam-url", Input)
+            if bid == "st-webcam-reset":
+                url = self.default_webcam_url
+                self.settings.webcam_url = None
+            else:
+                url = field.value.strip() or self.default_webcam_url
+                self.settings.webcam_url = (
+                    url if url != self.default_webcam_url else None
+                )
+            field.value = url
+            self.webcam_url = url
+            self.settings.save()
+            for cam in self.query(WebcamPanel):
+                cam.set_url(url)
+            self.notify(url, title="Webcam URL")
+
+        elif bid.startswith("st-theme-"):
+            self.set_theme(bid.removeprefix("st-theme-"))
+
         elif bid.startswith("st-toggle-"):
             key = bid.removeprefix("st-toggle-")
             on = self.settings.toggle(key)

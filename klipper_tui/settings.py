@@ -30,6 +30,7 @@ def config_path() -> Path:
 class Settings:
     def __init__(self) -> None:
         self.theme: str | None = None
+        self.webcam_url: str | None = None
         self.dashboard: dict[str, bool] = {
             k: default for k, (_, default) in DASHBOARD_PANELS.items()
         }
@@ -45,6 +46,8 @@ class Settings:
             return
         if isinstance(data.get("theme"), str):
             self.theme = data["theme"]
+        if isinstance(data.get("webcam_url"), str):
+            self.webcam_url = data["webcam_url"].strip() or None
         saved = data.get("dashboard")
         if isinstance(saved, dict):
             # Only accept known keys, so a stale file cannot inject panels.
@@ -57,7 +60,12 @@ class Settings:
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps(
-                {"theme": self.theme, "dashboard": self.dashboard}, indent=2
+                {
+                    "theme": self.theme,
+                    "webcam_url": self.webcam_url,
+                    "dashboard": self.dashboard,
+                },
+                indent=2,
             ))
         except OSError:
             pass

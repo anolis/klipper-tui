@@ -317,8 +317,9 @@ PreheatScreen {
 }
 
 .setting-row Button {
-    min-width: 12;
-    width: 12;
+    /* The bullet glyphs are double-width, so 12 wraps the label. */
+    min-width: 15;
+    width: 15;
 }
 
 .setting-label {
@@ -361,4 +362,10 @@ Button.-muted {
 .on-dashboard #file-table {
     height: 12;
     max-height: 12;
+}
+
+/* The generic .btn-row width of 16 is far too narrow for a URL. */
+#st-webcam-url {
+    width: 1fr;
+    min-width: 40;
 }

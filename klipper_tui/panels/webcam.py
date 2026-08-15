@@ -71,6 +71,11 @@ class WebcamPanel(Vertical):
             self._timer.stop()
         self._timer = self.set_interval(1 / self.fps, self._tick)
 
+    def set_url(self, url: str) -> None:
+        self.snapshot_url = url
+        self._fail_count = 0
+        self._update_info()
+
     def set_fps(self, fps: int) -> None:
         self.fps = fps
         self._update_info()
