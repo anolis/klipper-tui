@@ -50,8 +50,7 @@ Use `-p/--port` if Moonraker is not on 7125.
 | `b` | Mesh | Bed mesh calibration and a colour heightmap |
 | `w` | Webcam | Live MJPEG feed with pause and frame-rate control |
 | `g` | Graph | Temperature history for hotend and bed, with target lines |
-
-| `s` | Settings | Choose which panels appear on the dashboard |
+| `s` | Settings | Dashboard panels, theme, and the webcam URL |
 
 `Ctrl+E` sends an emergency stop. `t` cycles themes. `q` quits.
 
