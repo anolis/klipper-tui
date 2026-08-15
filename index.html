@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="ominous">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>klipper-tui — Terminal UI for Klipper 3D Printers via Moonraker</title>
+  <meta name="description" content="A blazing fast, keyboard-first terminal UI for Klipper 3D printers. Watch temperatures with braille graphs, jog in 3D wireframe, inspect bed meshes, stream webcams, and send G-code without leaving your shell.">
+  <meta name="keywords" content="klipper, klipper-tui, 3d-printing, textual, python, moonraker, terminal ui, tui, mainsail, fluidd, voron">
+
+  <!-- OpenGraph / Social Cards -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="klipper-tui — Terminal UI for Klipper 3D Printers">
+  <meta property="og:description" content="Watch temperatures, jog toolheads in 3D, inspect bed meshes, and send G-code—without launching heavy browser tabs.">
+  <meta property="og:url" content="https://anolis.github.io/klipper-tui/">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="klipper-tui — Terminal UI for Klipper 3D Printers">
+  <meta name="twitter:description" content="Pure Python + Textual async terminal client connecting directly to Moonraker API.">
+
+  <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Background decorative glows -->
+  <div class="ambient-glow glow-top" aria-hidden="true"></div>
+  <div class="ambient-glow glow-bottom" aria-hidden="true"></div>
+
+  <!-- Header Navigation -->
+  <header class="site-header">
+    <div class="container nav-container">
+      <a href="#" class="brand" id="brandLogo">
+        <span class="brand-badge">TUI</span>
+        <span class="brand-name">klipper<span class="brand-accent">-tui</span></span>
+        <span class="version-tag">v0.1.0</span>
+      </a>
+
+      <nav class="nav-links" id="navLinks" aria-label="Main Navigation">
+        <a href="#demo" class="nav-item">Interactive Demo</a>
+        <a href="#features" class="nav-item">Features</a>
+        <a href="#architecture" class="nav-item">Architecture</a>
+        <a href="#quickstart" class="nav-item">Quickstart</a>
+        <a href="#shortcuts" class="nav-item">Keybindings</a>
+      </nav>
+
+      <div class="header-actions">
+        <!-- Theme Picker -->
+        <div class="theme-dropdown-wrapper">
+          <button type="button" class="theme-select-btn" id="themeDropdownBtn" aria-label="Change UI Theme" aria-expanded="false">
+            <span class="theme-color-dot"></span>
+            <span id="currentThemeLabel">Ominous</span>
+            <svg class="chevron-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="theme-dropdown-menu" id="themeDropdownMenu" role="menu">
+            <button type="button" class="theme-option active" data-theme-val="ominous" role="menuitem">
+              <span class="theme-swatch ominous-swatch"></span>
+              <span>Ominous <small>(Default)</small></span>
+            </button>
+            <button type="button" class="theme-option" data-theme-val="mainsail" role="menuitem">
+              <span class="theme-swatch mainsail-swatch"></span>
+              <span>Mainsail <small>(Blue)</small></span>
+            </button>
+            <button type="button" class="theme-option" data-theme-val="forge" role="menuitem">
+              <span class="theme-swatch forge-swatch"></span>
+              <span>Forge <small>(Amber)</small></span>
+            </button>
+          </div>
+        </div>
+
+        <a href="https://github.com/anolis/klipper-tui" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-github" id="githubLinkBtn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+          <span>GitHub</span>
+        </a>
+
+        <button type="button" class="mobile-toggle" id="mobileToggle" aria-label="Open Navigation Menu">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero-section">
+    <div class="container hero-container">
+      <div class="hero-pill-badge">
+        <span class="pulse-dot"></span>
+        <span>A Full Klipper Dashboard In Your Terminal</span>
+      </div>
+
+      <h1 class="hero-headline">
+        The speed & precision of the CLI.<br>
+        <span class="gradient-text">Built for Klipper 3D Printers.</span>
+      </h1>
+
+      <p class="hero-subhead">
+        Monitor prints, jog in 3D wireframe, inspect color-coded bed meshes, stream webcams, and send G-code over Moonraker WebSocket—without ever opening a browser.
+      </p>
+
+      <!-- Quick Install Box -->
+      <div class="hero-install-container">
+        <div class="install-tabs">
+          <button type="button" class="install-tab-btn active" data-cmd="pipx install klipper-tui">pipx (recommended)</button>
+          <button type="button" class="install-tab-btn" data-cmd="pip install klipper-tui[webcam]">pip + webcam</button>
+          <button type="button" class="install-tab-btn" data-cmd="git clone https://github.com/anolis/klipper-tui &amp;&amp; cd klipper-tui &amp;&amp; pip install -e .">source</button>
+        </div>
+        <div class="install-command-bar">
+          <span class="prompt-prefix">$</span>
+          <code id="heroInstallCmd">pipx install klipper-tui</code>
+          <button type="button" class="btn-copy" id="heroCopyBtn" aria-label="Copy install command">
+            <svg class="copy-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            <span class="copy-tooltip">Copy</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Hero Metrics -->
+      <div class="hero-stats-row">
+        <div class="stat-item">
+          <span class="stat-value">&lt; 15ms</span>
+          <span class="stat-label">WebSocket Latency</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <span class="stat-value">0 MB</span>
+          <span class="stat-label">Browser RAM Overhead</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <span class="stat-value">8 Tabs</span>
+          <span class="stat-label">Full Control Surface</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <span class="stat-value">GPL-3.0</span>
+          <span class="stat-label">100% Free &amp; Open Source</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Terminal Simulator Section -->
+  <section class="demo-section" id="demo">
+    <div class="container">
+      <div class="section-header text-center">
+        <span class="section-tag">Hands-On Experience</span>
+        <h2 class="section-title">Live Interactive TUI Simulator</h2>
+        <p class="section-desc">
+          Click tabs or press single-letter hotkeys (<kbd>d</kbd>, <kbd>c</kbd>, <kbd>m</kbd>, <kbd>f</kbd>, <kbd>b</kbd>, <kbd>w</kbd>, <kbd>g</kbd>, <kbd>s</kbd>) to navigate. Type real G-code in the console tab!
+        </p>
+      </div>
+
+      <!-- Terminal Window Frame -->
+      <div class="terminal-frame">
+        <!-- Terminal Titlebar -->
+        <div class="terminal-titlebar">
+          <div class="window-controls">
+            <span class="ctrl-dot dot-close"></span>
+            <span class="ctrl-dot dot-min"></span>
+            <span class="ctrl-dot dot-max"></span>
+          </div>
+          <div class="terminal-session-info">
+            <span class="session-printer-badge">voron-2.4</span>
+            <span class="session-host">mainsailos.local:7125</span>
+            <span class="session-status state-printing">PRINTING (68%)</span>
+          </div>
+          <div class="terminal-meta">
+            <span class="fps-badge">60 FPS</span>
+          </div>
+        </div>
+
+        <!-- Terminal Tab Bar -->
+        <div class="terminal-nav-bar" id="tuiTabBar" role="tablist">
+          <button type="button" class="tui-tab active" data-tab="dashboard" role="tab" aria-selected="true" id="tabBtnDashboard">
+            <span class="key-hint">d</span> Dashboard
+          </button>
+          <button type="button" class="tui-tab" data-tab="console" role="tab" aria-selected="false" id="tabBtnConsole">
+            <span class="key-hint">c</span> Console
+          </button>
+          <button type="button" class="tui-tab" data-tab="move" role="tab" aria-selected="false" id="tabBtnMove">
+            <span class="key-hint">m</span> Move 3D
+          </button>
+          <button type="button" class="tui-tab" data-tab="files" role="tab" aria-selected="false" id="tabBtnFiles">
+            <span class="key-hint">f</span> Files
+          </button>
+          <button type="button" class="tui-tab" data-tab="mesh" role="tab" aria-selected="false" id="tabBtnMesh">
+            <span class="key-hint">b</span> Bed Mesh
+          </button>
+          <button type="button" class="tui-tab" data-tab="webcam" role="tab" aria-selected="false" id="tabBtnWebcam">
+            <span class="key-hint">w</span> Webcam
+          </button>
+          <button type="button" class="tui-tab" data-tab="graph" role="tab" aria-selected="false" id="tabBtnGraph">
+            <span class="key-hint">g</span> Graph
+          </button>
+          <button type="button" class="tui-tab" data-tab="settings" role="tab" aria-selected="false" id="tabBtnSettings">
+            <span class="key-hint">s</span> Settings
+          </button>
+        </div>
+
+        <!-- Terminal Screen Canvas / Output Area -->
+        <div class="terminal-screen" id="terminalScreen">
+
+          <!-- 1. DASHBOARD VIEW -->
+          <div class="tui-view-panel active" id="viewDashboard">
+            <div class="dashboard-grid">
+              
+              <!-- State & Progress Panel -->
+              <div class="tui-card">
+                <div class="card-header">
+                  <span class="card-title">Job Status</span>
+                  <span class="badge-success">PRINTING</span>
+                </div>
+                <div class="card-body">
+                  <div class="job-meta-row">
+                    <span class="dim">File:</span>
+                    <span class="highlight bold">benchy_highspeed_pla.gcode</span>
+                  </div>
+                  <div class="progress-bar-container">
+                    <div class="progress-bar-fill" style="width: 68%;"></div>
+                  </div>
+                  <div class="progress-stats-row">
+                    <span>Progress: <strong>68%</strong> (Layer 204/300)</span>
+                    <span>ETA: <strong>12m 45s</strong></span>
+                  </div>
+                  <div class="stats-mini-grid">
+                    <div><span class="dim">Elapsed:</span> 00:27:15</div>
+                    <div><span class="dim">Speed:</span> 250 mm/s (100%)</div>
+                    <div><span class="dim">Flow:</span> 18.5 mm³/s (100%)</div>
+                    <div><span class="dim">Fan:</span> 100% (255)</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Toolhead Coordinates -->
+              <div class="tui-card">
+                <div class="card-header">
+                  <span class="card-title">Toolhead Position</span>
+                  <span class="dim">Homed: XYZ</span>
+                </div>
+                <div class="card-body">
+                  <div class="coord-display-grid">
+                    <div class="coord-cell"><span class="axis">X</span> <span class="coord-val" id="dashCoordX">174.25</span> mm</div>
+                    <div class="coord-cell"><span class="axis">Y</span> <span class="coord-val" id="dashCoordY">148.80</span> mm</div>
+                    <div class="coord-cell"><span class="axis">Z</span> <span class="coord-val" id="dashCoordZ">40.80</span> mm</div>
+                    <div class="coord-cell"><span class="axis">E</span> <span class="coord-val" id="dashCoordE">1248.60</span> mm</div>
+                  </div>
+                  <div class="quick-jog-row">
+                    <button type="button" class="tui-btn tui-btn-sm" id="btnDashHomeAll">G28 (Home)</button>
+                    <button type="button" class="tui-btn tui-btn-sm" id="btnDashPause">Pause</button>
+                    <button type="button" class="tui-btn tui-btn-sm tui-btn-danger" id="btnDashEmergency">E-STOP</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Temperature Sensors -->
+              <div class="tui-card">
+                <div class="card-header">
+                  <span class="card-title">Temperatures</span>
+                  <span class="badge-success">Target Reached</span>
+                </div>
+                <div class="card-body">
+                  <div class="temp-readout-row">
+                    <div class="temp-item">
+                      <span class="temp-name"><span class="dot-hot"></span> Extruder</span>
+                      <span class="temp-nums"><strong id="dashExtruderTemp">215.0</strong>°C / 215°C</span>
+                      <div class="temp-bar"><div class="temp-bar-fill hot-fill" style="width: 71%;"></div></div>
+                    </div>
+                    <div class="temp-item">
+                      <span class="temp-name"><span class="dot-bed"></span> Heated Bed</span>
+                      <span class="temp-nums"><strong id="dashBedTemp">60.2</strong>°C / 60°C</span>
+                      <div class="temp-bar"><div class="temp-bar-fill bed-fill" style="width: 50%;"></div></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Material Presets -->
+              <div class="tui-card">
+                <div class="card-header">
+                  <span class="card-title">Material Presets</span>
+                  <span class="dim">1-Click Set</span>
+                </div>
+                <div class="card-body">
+                  <div class="presets-btn-grid">
+                    <button type="button" class="tui-btn active-preset" id="presetPla">PLA <small>215 / 60</small></button>
+                    <button type="button" class="tui-btn" id="presetPetg">PETG <small>240 / 80</small></button>
+                    <button type="button" class="tui-btn" id="presetAbs">ABS <small>255 / 100</small></button>
+                    <button type="button" class="tui-btn" id="presetCooldown">Cooldown <small>0 / 0</small></button>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- 2. CONSOLE VIEW -->
+          <div class="tui-view-panel" id="viewConsole">
+            <div class="console-wrapper">
+              <div class="console-output" id="consoleOutput" role="log" aria-live="polite">
+                <div class="log-line log-system">Connecting to ws://mainsailos.local:7125/websocket...</div>
+                <div class="log-line log-success">Connected to Moonraker v0.8.0. Klippy state: Ready.</div>
+                <div class="log-line log-cmd">&gt; M105</div>
+                <div class="log-line log-response">ok B:60.2 /60.0 T0:215.0 /215.0</div>
+                <div class="log-line log-cmd">&gt; GET_POSITION</div>
+                <div class="log-line log-response">// toolhead: X:174.250 Y:148.800 Z:40.800 E:1248.600</div>
+                <div class="log-line log-dim">// Try typing: 'G28', 'M105', 'M104 S220', 'STATUS', 'HELP', or 'CLEAR' below.</div>
+              </div>
+              <form class="console-input-bar" id="consoleForm">
+                <span class="console-prompt">&gt;</span>
+                <input type="text" class="console-input" id="consoleInput" placeholder="Send G-code / Moonraker command (e.g. M105, G28, STATUS)..." autocomplete="off" spellcheck="false">
+                <button type="submit" class="tui-btn tui-btn-primary">Send</button>
+              </form>
+            </div>
+          </div>
+
+          <!-- 3. MOVE 3D VIEW -->
+          <div class="tui-view-panel" id="viewMove">
+            <div class="move-layout-grid">
+              <!-- Jog Controls -->
+              <div class="jog-panel">
+                <div class="card-title">Homing &amp; Jogging</div>
+                <div class="home-buttons-row">
+                  <button type="button" class="tui-btn tui-btn-primary" id="jogHomeAll">Home All (G28)</button>
+                  <button type="button" class="tui-btn" id="jogHomeXY">Home XY</button>
+                  <button type="button" class="tui-btn" id="jogHomeZ">Home Z</button>
+                </div>
+
+                <div class="jog-step-selector">
+                  <span class="dim">Step:</span>
+                  <button type="button" class="step-btn" data-step="0.1">0.1</button>
+                  <button type="button" class="step-btn" data-step="1">1</button>
+                  <button type="button" class="step-btn active" data-step="10">10</button>
+                  <button type="button" class="step-btn" data-step="50">50</button>
+                  <button type="button" class="step-btn" data-step="100">100mm</button>
+                </div>
+
+                <div class="jog-matrix">
+                  <div></div>
+                  <button type="button" class="tui-btn jog-arrow" id="jogYPlus">+Y</button>
+                  <div></div>
+                  <button type="button" class="tui-btn jog-arrow" id="jogXMinus">-X</button>
+                  <button type="button" class="tui-btn jog-center" id="jogCenter">Center</button>
+                  <button type="button" class="tui-btn jog-arrow" id="jogXPlus">+X</button>
+                  <div></div>
+                  <button type="button" class="tui-btn jog-arrow" id="jogYMinus">-Y</button>
+                  <div></div>
+                </div>
+
+                <div class="z-jog-row">
+                  <button type="button" class="tui-btn" id="jogZPlus">+Z Up</button>
+                  <button type="button" class="tui-btn" id="jogZMinus">-Z Down</button>
+                </div>
+              </div>
+
+              <!-- 3D Wireframe Canvas Projection -->
+              <div class="wireframe-3d-panel">
+                <div class="wireframe-controls-bar">
+                  <span class="card-title">3D Build Volume Visualizer</span>
+                  <div class="wireframe-actions">
+                    <button type="button" class="tui-btn tui-btn-sm" id="btnSpinToggle">Auto-Spin: ON</button>
+                    <button type="button" class="tui-btn tui-btn-sm" id="btnReset3D">Reset View</button>
+                  </div>
+                </div>
+                <div class="wireframe-canvas-container">
+                  <canvas id="wireframeCanvas" width="500" height="280"></canvas>
+                  <div class="wireframe-overlay-coords">
+                    X: <span id="wireCoordX">174.2</span> mm | Y: <span id="wireCoordY">148.8</span> mm | Z: <span id="wireCoordZ">40.8</span> mm
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. FILES VIEW -->
+          <div class="tui-view-panel" id="viewFiles">
+            <div class="files-panel-wrapper">
+              <div class="files-header-bar">
+                <span class="card-title">G-Code Files (/gcodes)</span>
+                <span class="dim">3 files loaded (Free: 24.8 GB)</span>
+              </div>
+              <div class="files-table-wrapper">
+                <table class="tui-table">
+                  <thead>
+                    <tr>
+                      <th>Filename</th>
+                      <th>Size</th>
+                      <th>Est. Time</th>
+                      <th>Layer Height</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr class="active-print-row">
+                      <td><span class="file-icon">📄</span> <strong>benchy_highspeed_pla.gcode</strong> <span class="badge-mini-active">Active</span></td>
+                      <td>4.2 MB</td>
+                      <td>00:39:45</td>
+                      <td>0.20 mm</td>
+                      <td><button type="button" class="tui-btn tui-btn-sm tui-btn-danger">Pause</button></td>
+                    </tr>
+                    <tr>
+                      <td><span class="file-icon">📄</span> voron_stealthburner_mainbody_abs.gcode</td>
+                      <td>14.8 MB</td>
+                      <td>03:14:10</td>
+                      <td>0.20 mm</td>
+                      <td><button type="button" class="tui-btn tui-btn-sm">Print</button></td>
+                    </tr>
+                    <tr>
+                      <td><span class="file-icon">📄</span> cable_chain_links_petg.gcode</td>
+                      <td>8.6 MB</td>
+                      <td>01:45:20</td>
+                      <td>0.16 mm</td>
+                      <td><button type="button" class="tui-btn tui-btn-sm">Print</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. BED MESH VIEW -->
+          <div class="tui-view-panel" id="viewMesh">
+            <div class="mesh-panel-layout">
+              <div class="mesh-sidebar">
+                <div class="card-title">Bed Mesh Calibration</div>
+                <p class="dim font-sm">Calculated from 5x5 inductive/load-cell probe points.</p>
+                <div class="mesh-stats-block">
+                  <div class="mesh-stat-item">
+                    <span class="dim">Min Z:</span>
+                    <strong class="text-blue">-0.042 mm</strong>
+                  </div>
+                  <div class="mesh-stat-item">
+                    <span class="dim">Max Z:</span>
+                    <strong class="text-orange">+0.058 mm</strong>
+                  </div>
+                  <div class="mesh-stat-item">
+                    <span class="dim">Range (Variance):</span>
+                    <strong class="text-green">0.100 mm</strong>
+                  </div>
+                  <div class="mesh-stat-item">
+                    <span class="dim">Profile:</span>
+                    <strong>default</strong>
+                  </div>
+                </div>
+                <div class="mesh-actions-col">
+                  <button type="button" class="tui-btn tui-btn-primary" id="btnCalibrateMesh">Calibrate Mesh</button>
+                  <button type="button" class="tui-btn" id="btnSaveConfigMesh">SAVE_CONFIG</button>
+                  <button type="button" class="tui-btn tui-btn-danger" id="btnClearMesh">Clear Mesh</button>
+                </div>
+              </div>
+
+              <!-- Color-coded Bed Mesh Heightmap Grid -->
+              <div class="mesh-heightmap-container">
+                <div class="mesh-grid-header">
+                  <span>Bed Heightmap (Variance Color-Coded)</span>
+                  <div class="gradient-scale-bar">
+                    <span>-0.05mm</span>
+                    <div class="scale-gradient"></div>
+                    <span>+0.05mm</span>
+                  </div>
+                </div>
+                <div class="heightmap-grid" id="heightmapGrid">
+                  <!-- Generated via JS -->
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 6. WEBCAM VIEW -->
+          <div class="tui-view-panel" id="viewWebcam">
+            <div class="webcam-container">
+              <div class="webcam-header-bar">
+                <div class="webcam-title-group">
+                  <span class="card-title">Live MJPEG Stream</span>
+                  <span class="live-rec-badge"><span class="rec-dot"></span> LIVE (30 FPS)</span>
+                </div>
+                <div class="webcam-controls">
+                  <button type="button" class="tui-btn tui-btn-sm" id="btnPauseWebcam">Pause</button>
+                  <button type="button" class="tui-btn tui-btn-sm" id="btnWebcamMode">Mode: Braille Half-Block</button>
+                </div>
+              </div>
+              <div class="webcam-canvas-area" id="webcamViewArea">
+                <!-- Live canvas stream simulation -->
+                <canvas id="webcamSimCanvas" width="560" height="260"></canvas>
+                <div class="webcam-hud">
+                  <span>CAM: Bed Nozzle Top | RES: 1920x1080 | FORMAT: MJPEG</span>
+                  <span>ZOOM: 1.0x</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 7. TEMP GRAPH (BRAILLE) VIEW -->
+          <div class="tui-view-panel" id="viewGraph">
+            <div class="graph-panel-wrapper">
+              <div class="graph-header-bar">
+                <div class="graph-legend">
+                  <span class="legend-item"><span class="swatch-hot"></span> Extruder: <strong id="graphExtruderVal">215.0°C</strong> (Target: 215°C)</span>
+                  <span class="legend-item"><span class="swatch-bed"></span> Bed: <strong id="graphBedVal">60.2°C</strong> (Target: 60°C)</span>
+                </div>
+                <span class="dim font-sm">Sub-pixel UTF-8 Braille Canvas (2x4 dots per cell)</span>
+              </div>
+              <div class="braille-graph-viewport">
+                <pre class="braille-text-canvas" id="brailleTextCanvas">Loading braille temperature series...</pre>
+              </div>
+            </div>
+          </div>
+
+          <!-- 8. SETTINGS VIEW -->
+          <div class="tui-view-panel" id="viewSettings">
+            <div class="settings-panel-grid">
+              <div class="settings-card">
+                <div class="card-title">Appearance &amp; Theme</div>
+                <div class="setting-row">
+                  <label id="themeRadioLabel">Active Color Theme:</label>
+                  <div class="theme-radios" role="radiogroup" aria-labelledby="themeRadioLabel">
+                    <label class="radio-label">
+                      <input type="radio" name="appTheme" value="ominous" checked>
+                      <span>Ominous (Dark Burgundy)</span>
+                    </label>
+                    <label class="radio-label">
+                      <input type="radio" name="appTheme" value="mainsail">
+                      <span>Mainsail (Deep Blue)</span>
+                    </label>
+                    <label class="radio-label">
+                      <input type="radio" name="appTheme" value="forge">
+                      <span>Forge (Warm Amber)</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="settings-card">
+                <div class="card-title">Moonraker Connection</div>
+                <div class="setting-row">
+                  <span class="dim">Host:</span>
+                  <code>mainsailos.local</code>
+                </div>
+                <div class="setting-row">
+                  <span class="dim">Port:</span>
+                  <code>7125</code>
+                </div>
+                <div class="setting-row">
+                  <span class="dim">Protocol:</span>
+                  <code>JSON-RPC 2.0 over WebSocket</code>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Terminal Statusline Footer -->
+        <div class="terminal-statusbar">
+          <div class="statusbar-left">
+            <span class="key-cmd"><kbd>q</kbd> Quit</span>
+            <span class="key-cmd"><kbd>t</kbd> Next Theme</span>
+            <span class="key-cmd"><kbd>Ctrl+E</kbd> Emergency Stop</span>
+            <span class="key-cmd"><kbd>Ctrl+P</kbd> Command Palette</span>
+          </div>
+          <div class="statusbar-right">
+            <span id="terminalTimeClock">18:39:42</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Core Features Grid -->
+  <section class="features-section" id="features">
+    <div class="container">
+      <div class="section-header text-center">
+        <span class="section-tag">Engineered for Performance</span>
+        <h2 class="section-title">Everything you need. Zero bloat.</h2>
+        <p class="section-desc">
+          klipper-tui talks directly to Moonraker over persistent async WebSockets with sub-millisecond dispatch.
+        </p>
+      </div>
+
+      <div class="features-grid">
+        
+        <!-- Feature 1 -->
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+          </div>
+          <h3 class="feature-title">Isometric 3D Wireframe Projection</h3>
+          <p class="feature-text">
+            Render your entire 3D build volume directly in terminal character cells with real-time toolhead coordinates, auto-spin, and dynamic axis bounds.
+          </p>
+        </div>
+
+        <!-- Feature 2 -->
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          <h3 class="feature-title">Sub-Cell Braille Temperature Graphs</h3>
+          <p class="feature-text">
+            Four times the vertical resolution of regular ASCII charts. High-density UTF-8 braille matrix with target temperature line overlays.
+          </p>
+        </div>
+
+        <!-- Feature 3 -->
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+          </div>
+          <h3 class="feature-title">Color-Coded Bed Mesh Heightmaps</h3>
+          <p class="feature-text">
+            Instant visual feedback on your bed level variance. Live probe tracking during calibration and profile persistence.
+          </p>
+        </div>
+
+        <!-- Feature 4 -->
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          </div>
+          <h3 class="feature-title">Interactive G-Code Shell with History</h3>
+          <p class="feature-text">
+            Send raw G-code, Klipper macros, and Moonraker RPC requests with arrow-key history recall (<kbd>↑</kbd>/<kbd>↓</kbd>) and formatted responses.
+          </p>
+        </div>
+
+        <!-- Feature 5 -->
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          </div>
+          <h3 class="feature-title">Live Terminal Webcam Streaming</h3>
+          <p class="feature-text">
+            Stream your print bed camera directly in your terminal via optional <code>textual-image</code> half-block rendering or ASCII mode.
+          </p>
+        </div>
+
+        <!-- Feature 6 -->
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+          </div>
+          <h3 class="feature-title">Multi-Theme Token Architecture</h3>
+          <p class="feature-text">
+            Fully semantic theming system with built-in dark palettes: <strong>Ominous</strong>, <strong>Mainsail</strong>, and <strong>Forge</strong>. Cycle themes instantly with <kbd>t</kbd>.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Architecture Section -->
+  <section class="arch-section" id="architecture">
+    <div class="container">
+      <div class="section-header text-center">
+        <span class="section-tag">System Design</span>
+        <h2 class="section-title">How klipper-tui Connects</h2>
+        <p class="section-desc">
+          Zero software needed on your printer. klipper-tui runs purely on your client machine and connects to Moonraker.
+        </p>
+      </div>
+
+      <div class="arch-flow-card">
+        <div class="arch-node-col">
+          <div class="arch-node client-node">
+            <div class="node-badge">Client Machine</div>
+            <div class="node-title">klipper-tui</div>
+            <div class="node-subtitle">Python 3.10+ &amp; Textual Async Engine</div>
+            <ul class="node-specs">
+              <li>• Keyboard-driven UI</li>
+              <li>• Braille Graph Canvas</li>
+              <li>• 3D Wireframe Math</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="arch-connector">
+          <div class="connector-line"></div>
+          <span class="connector-label">WebSocket + HTTP JSON-RPC<br><small>:7125</small></span>
+        </div>
+
+        <div class="arch-node-col">
+          <div class="arch-node host-node">
+            <div class="node-badge">Printer Host (Pi / Linux)</div>
+            <div class="node-title">Moonraker API</div>
+            <div class="node-subtitle">Klipper Web Server &amp; State Manager</div>
+            <ul class="node-specs">
+              <li>• WebSockets API</li>
+              <li>• File &amp; Macro Manager</li>
+              <li>• Unix Domain Socket to Klippy</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="arch-connector">
+          <div class="connector-line"></div>
+          <span class="connector-label">IPC Socket<br><small>/tmp/klippy_uds</small></span>
+        </div>
+
+        <div class="arch-node-col">
+          <div class="arch-node printer-node">
+            <div class="node-badge">Firmware &amp; MCUs</div>
+            <div class="node-title">Klipper / Klippy</div>
+            <div class="node-subtitle">Microcontrollers (STM32, RP2040, AVR)</div>
+            <ul class="node-specs">
+              <li>• Kinematic calculations</li>
+              <li>• Stepper scheduling</li>
+              <li>• Resonance compensation</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quickstart & Installation -->
+  <section class="quickstart-section" id="quickstart">
+    <div class="container">
+      <div class="section-header text-center">
+        <span class="section-tag">Get Started in Seconds</span>
+        <h2 class="section-title">Install &amp; Run</h2>
+        <p class="section-desc">
+          Requires Python 3.10 or newer. Works on Linux and macOS.
+        </p>
+      </div>
+
+      <div class="quickstart-grid">
+        <!-- Step 1 -->
+        <div class="qs-card">
+          <div class="qs-step-number">1</div>
+          <h3 class="qs-title">Install via pipx</h3>
+          <p class="qs-desc">Install in an isolated environment with a global executable:</p>
+          <div class="code-snippet-box">
+            <code>pipx install klipper-tui</code>
+            <button type="button" class="copy-snippet-btn" data-copy="pipx install klipper-tui" aria-label="Copy code">Copy</button>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="qs-card">
+          <div class="qs-step-number">2</div>
+          <h3 class="qs-title">Launch with Hostname</h3>
+          <p class="qs-desc">Point klipper-tui to your printer's Moonraker IP or mDNS address:</p>
+          <div class="code-snippet-box">
+            <code>klipper-tui mainsailos.local</code>
+            <button type="button" class="copy-snippet-btn" data-copy="klipper-tui mainsailos.local" aria-label="Copy code">Copy</button>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="qs-card">
+          <div class="qs-step-number">3</div>
+          <h3 class="qs-title">Or Set Env Variable</h3>
+          <p class="qs-desc">Save your default printer host in your shell config (<code>~/.bashrc</code> / <code>~/.zshrc</code>):</p>
+          <div class="code-snippet-box">
+            <code>export KLIPPER_HOST=192.168.1.50<br>klipper-tui</code>
+            <button type="button" class="copy-snippet-btn" data-copy="export KLIPPER_HOST=192.168.1.50 &amp;&amp; klipper-tui" aria-label="Copy code">Copy</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Keybindings Cheat Sheet -->
+  <section class="shortcuts-section" id="shortcuts">
+    <div class="container">
+      <div class="section-header text-center">
+        <span class="section-tag">Keyboard-First Workflow</span>
+        <h2 class="section-title">Keybindings Reference</h2>
+        <p class="section-desc">Fly through tabs and controls without taking your hands off the keyboard.</p>
+      </div>
+
+      <div class="shortcuts-table-container">
+        <div class="table-search-bar">
+          <input type="text" id="shortcutSearchInput" placeholder="Filter keybindings (e.g., 'jog', 'theme', 'console')..." spellcheck="false">
+        </div>
+        <table class="shortcuts-table" id="shortcutsTable">
+          <thead>
+            <tr>
+              <th>Key / Shortcut</th>
+              <th>Action</th>
+              <th>Category</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><kbd>d</kbd></td>
+              <td>Switch to <strong>Dashboard</strong> tab</td>
+              <td><span class="cat-badge">Navigation</span></td>
+            </tr>
+            <tr>
+              <td><kbd>c</kbd></td>
+              <td>Switch to <strong>Console</strong> tab</td>
+              <td><span class="cat-badge">Navigation</span></td>
+            </tr>
+            <tr>
+              <td><kbd>m</kbd></td>
+              <td>Switch to <strong>Move 3D</strong> tab</td>
+              <td><span class="cat-badge">Navigation</span></td>
+            </tr>
+            <tr>
+              <td><kbd>f</kbd></td>
+              <td>Switch to <strong>Files</strong> tab</td>
+              <td><span class="cat-badge">Navigation</span></td>
+            </tr>
+            <tr>
+              <td><kbd>b</kbd></td>
+              <td>Switch to <strong>Bed Mesh</strong> tab</td>
+              <td><span class="cat-badge">Navigation</span></td>
+            </tr>
+            <tr>
+              <td><kbd>w</kbd></td>
+              <td>Switch to <strong>Webcam</strong> tab</td>
+              <td><span class="cat-badge">Navigation</span></td>
+            </tr>
+            <tr>
+              <td><kbd>g</kbd></td>
+              <td>Switch to <strong>Graph</strong> tab</td>
+              <td><span class="cat-badge">Navigation</span></td>
+            </tr>
+            <tr>
+              <td><kbd>s</kbd></td>
+              <td>Switch to <strong>Settings</strong> tab</td>
+              <td><span class="cat-badge">Navigation</span></td>
+            </tr>
+            <tr>
+              <td><kbd>Ctrl</kbd> + <kbd>E</kbd></td>
+              <td>Send immediate <strong>Emergency Stop</strong> (M112)</td>
+              <td><span class="cat-badge cat-danger">Safety</span></td>
+            </tr>
+            <tr>
+              <td><kbd>t</kbd></td>
+              <td>Cycle to next color theme</td>
+              <td><span class="cat-badge">Appearance</span></td>
+            </tr>
+            <tr>
+              <td><kbd>Ctrl</kbd> + <kbd>P</kbd></td>
+              <td>Open Textual Command Palette</td>
+              <td><span class="cat-badge">General</span></td>
+            </tr>
+            <tr>
+              <td><kbd>↑</kbd> / <kbd>↓</kbd></td>
+              <td>Recall command history in Console</td>
+              <td><span class="cat-badge">Console</span></td>
+            </tr>
+            <tr>
+              <td><kbd>q</kbd></td>
+              <td>Quit klipper-tui</td>
+              <td><span class="cat-badge">General</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Banner Section -->
+  <section class="cta-section">
+    <div class="container">
+      <div class="cta-card">
+        <h2 class="cta-title">Ready to streamline your 3D printing workflow?</h2>
+        <p class="cta-desc">
+          Clone or install klipper-tui and control your Klipper machine straight from your shell.
+        </p>
+        <div class="cta-actions">
+          <a href="https://github.com/anolis/klipper-tui" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-lg" id="footerCtaGithub">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+            <span>Star on GitHub</span>
+          </a>
+          <a href="#quickstart" class="btn btn-secondary btn-lg">Quickstart Guide</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Site Footer -->
+  <footer class="site-footer">
+    <div class="container footer-container">
+      <div class="footer-left">
+        <div class="footer-brand">klipper-tui</div>
+        <p class="footer-text">
+          Released under the <a href="https://github.com/anolis/klipper-tui/blob/master/LICENSE" target="_blank" rel="noopener noreferrer">GPL-3.0 License</a>. Created by Bill Carson.
+        </p>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/anolis/klipper-tui" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a href="https://www.klipper3d.org/" target="_blank" rel="noopener noreferrer">Klipper Docs</a>
+        <a href="https://moonraker.readthedocs.io/" target="_blank" rel="noopener noreferrer">Moonraker Docs</a>
+        <a href="https://textual.textualize.io/" target="_blank" rel="noopener noreferrer">Textual Framework</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="app.js"></script>
+</body>
+</html>
