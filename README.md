@@ -30,6 +30,7 @@ Use `-p/--port` if Moonraker is not on 7125.
 | `f` | Files | G-code file browser plus print/pause/resume/cancel |
 | `b` | Mesh | Bed mesh calibration and a colour heightmap |
 | `w` | Webcam | Live MJPEG feed with pause and frame-rate control |
+| `g` | Graph | Temperature history for hotend and bed, with target lines |
 
 `Ctrl+E` sends an emergency stop. `q` quits.
 

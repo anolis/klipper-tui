@@ -215,6 +215,12 @@ class MoonrakerClient:
     async def print_cancel(self) -> dict:
         return await self.call("printer.print.cancel")
 
+    async def temperature_store(self) -> dict:
+        """Server-side temperature history (~20 min at 1 Hz)."""
+        return await self.call(
+            "server.temperature_store", {"include_monitors": False}
+        )
+
     async def list_gcode_files(self) -> list[dict]:
         result = await self.call("server.files.list", {"root": "gcodes"})
         return result if isinstance(result, list) else result.get("files", [])

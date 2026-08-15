@@ -24,6 +24,7 @@ from .panels.extruder import ExtruderPanel
 from .panels.files import FilesPanel
 from .panels.status import StatusPanel
 from .panels.temperature import PRESETS, TemperaturePanel
+from .panels.tempgraph import RANGES, TempGraphPanel
 from .panels.toolhead import STEP_SIZES, ToolheadPanel
 from .panels.webcam import FPS_CHOICES, WebcamPanel
 
@@ -40,6 +41,7 @@ class KlipperTUI(App):
         ("f", "show_tab('files')", "Files"),
         ("b", "show_tab('mesh')", "Mesh"),
         ("w", "show_tab('webcam')", "Webcam"),
+        ("g", "show_tab('graph')", "Graph"),
         ("ctrl+e", "estop", "E-STOP"),
     ]
 
@@ -68,6 +70,8 @@ class KlipperTUI(App):
                         yield StatusPanel()
                         yield TemperaturePanel()
                     yield ExtruderPanel()
+            with TabPane("Graph", id="graph"):
+                yield TempGraphPanel()
             with TabPane("Console", id="console"):
                 yield ConsolePanel()
             with TabPane("Move", id="move"):
@@ -105,6 +109,7 @@ class KlipperTUI(App):
             self.query_one(TemperaturePanel).update_status(status)
             self.query_one(ExtruderPanel).update_status(status)
             self.query_one(BedMeshPanel).update_status(status)
+            self.query_one(TempGraphPanel).append_live(status)
         except Exception:
             # Panels may not be mounted yet during the first status burst.
             pass
@@ -127,6 +132,7 @@ class KlipperTUI(App):
             )
             if klippy_state == "ready":
                 self.refresh_files()
+                self.run_worker(self._seed_graph())
         else:
             bar.update("[#D41216]●[/] disconnected — retrying…")
 
@@ -162,6 +168,13 @@ class KlipperTUI(App):
 
     def refresh_files(self) -> None:
         self.run_worker(self._load_files(), exclusive=True)
+
+    async def _seed_graph(self) -> None:
+        try:
+            store = await self.client.temperature_store()
+            self.query_one(TempGraphPanel).seed(store)
+        except Exception:
+            pass
 
     async def _load_files(self) -> None:
         try:
@@ -280,6 +293,15 @@ class KlipperTUI(App):
             await self._job("print_resume", "Resumed")
         elif bid == "fl-cancel":
             await self._job("print_cancel", "Cancelled")
+
+        # Temperature graph
+        elif bid.startswith("tg-range-"):
+            self.query_one(TempGraphPanel).set_range(
+                int(bid.removeprefix("tg-range-"))
+            )
+        elif bid == "tg-targets":
+            on = self.query_one(TempGraphPanel).toggle_targets()
+            event.button.label = "Targets" if on else "No targets"
 
         # Webcam
         elif bid == "wc-toggle":
