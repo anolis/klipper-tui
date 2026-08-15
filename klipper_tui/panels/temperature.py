@@ -8,10 +8,10 @@ from textual.widgets import Button, Input, Label, Static
 
 # name -> (extruder target, bed target)
 PRESETS: dict[str, tuple[int, int]] = {
-    "PLA": (200, 60),
-    "PETG": (240, 80),
-    "ABS": (250, 100),
-    "TPU": (225, 50),
+    "PLA": (215, 65),
+    "PETG": (260, 80),
+    "ABS": (250, 90),
+    "TPU": (250, 80),
 }
 
 
