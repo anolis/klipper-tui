@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections import deque
 
 from textual.app import ComposeResult
@@ -38,6 +39,7 @@ class TempGraphPanel(Vertical):
             k: deque(maxlen=MAX_SAMPLES) for k, _, _, _ in SERIES
         }
         self._seeded = False
+        self._last_append = 0.0
 
     def compose(self) -> ComposeResult:
         yield Label("Temperature History", classes="panel-title")
@@ -72,7 +74,21 @@ class TempGraphPanel(Vertical):
         self._redraw()
 
     def append_live(self, status: dict) -> None:
-        """Append the latest reading from a status update."""
+        """Append the latest reading, throttled to 1 Hz.
+
+        Moonraker pushes status updates far faster than once a second, so
+        appending every one would evict the seeded history within a couple of
+        minutes and break the one-sample-per-second assumption the time window
+        depends on.
+        """
+        # Slightly under 1s: updates arrive at ~4 Hz, so a strict 1.0 threshold
+        # would only pass on the tick after, averaging 1.25s and stretching the
+        # window past what the time axis claims.
+        now = time.monotonic()
+        if now - self._last_append < 0.95:
+            return
+        self._last_append = now
+
         for key, *_ in SERIES:
             obj = status.get(key)
             if not obj:

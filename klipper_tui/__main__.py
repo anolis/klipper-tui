@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 
 from .app import KlipperTUI
 
 
 def main() -> None:
+    # textual-image probes the terminal for its cell size and logs a warning
+    # with a full traceback when the terminal does not answer (gnome-terminal
+    # does not). It falls back to VT340 sizes and works fine, so the noise on
+    # exit is not worth showing.
+    logging.getLogger("textual_image").setLevel(logging.ERROR)
+
     parser = argparse.ArgumentParser(
         prog="klipper-tui", description="Terminal UI for Klipper via Moonraker"
     )
