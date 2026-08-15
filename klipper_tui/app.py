@@ -142,13 +142,20 @@ class KlipperTUI(App):
         gone collides on the panel's id.
         """
         container = self.query_one("#dash-panels", VerticalScroll)
+        # Removal must be awaited or the replacements collide on widget ids.
         await container.remove_children()
+
+        panels = []
         for key in DASHBOARD_PANELS:
             if self.settings.visible(key):
                 panel = self._make_panel(key)
                 if panel is not None:
                     panel.add_class("on-dashboard")
-                    await container.mount(panel)
+                    panels.append(panel)
+        if panels:
+            # Not awaited: during start-up the app is still inside its own
+            # mount pipeline, and waiting on a child mount never returns.
+            container.mount(*panels)
         self.call_after_refresh(self._prime_new_panels)
 
     def _prime_new_panels(self) -> None:
@@ -165,7 +172,10 @@ class KlipperTUI(App):
     # -- lifecycle ------------------------------------------------------------
 
     def on_mount(self) -> None:
-        self.run_worker(self.rebuild_dashboard())
+        # Build once the first paint is done, so the tab panes exist.
+        self.call_after_refresh(
+            lambda: self.run_worker(self.rebuild_dashboard(), exclusive=True)
+        )
 
         self.client.on_status(self._handle_status)
         self.client.on_gcode_response(self._handle_gcode_response)

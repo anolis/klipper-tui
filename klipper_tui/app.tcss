@@ -3,6 +3,23 @@
 Screen {
     background: $background;
     color: $foreground;
+    overflow: hidden;
+}
+
+/* The tab area fills the screen exactly. Without a fixed height it sizes to
+   its content and pushes a scrollbar onto the screen itself; scrolling belongs
+   to the individual panes. */
+TabbedContent {
+    height: 1fr;
+}
+
+TabbedContent ContentSwitcher {
+    height: 1fr;
+}
+
+#statusbar {
+    height: 1;
+    dock: bottom;
 }
 
 Header {
@@ -92,6 +109,8 @@ Tab.-active {
 
 TabPane {
     padding: 1;
+    height: 1fr;
+    overflow-y: auto;
 }
 
 /* --- Dashboard layout ---------------------------------------------------- */
@@ -261,8 +280,10 @@ PreheatScreen {
     padding: 0 0 1 0;
 }
 
+/* Tall enough to scroll into a nearly full screen; a 1fr here collapses
+   inside the scrolling Move tab. */
 #ps-view {
-    height: 1fr;
+    height: 34;
     background: $background;
     border: round $accent;
     padding: 0 1;
@@ -331,7 +352,7 @@ Button.-muted {
 }
 
 .on-dashboard #ps-view {
-    height: 18;
+    height: 28;
 }
 
 
