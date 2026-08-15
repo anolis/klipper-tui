@@ -23,11 +23,16 @@ from .panels.console import ConsolePanel
 from .panels.extruder import ExtruderPanel
 from .panels.files import FilesPanel
 from .panels.position import PositionPanel
+from .panels.preheat import PreheatScreen
 from .panels.status import StatusPanel
+from .panels.tuning import FACTORS, TuningPanel
 from .panels.temperature import PRESETS, TemperaturePanel
 from .panels.tempgraph import RANGES, TempGraphPanel
 from .panels.toolhead import STEP_SIZES, ToolheadPanel
+from .panels.settings import SettingsPanel
 from .panels.webcam import FPS_CHOICES, WebcamPanel
+from .settings import DASHBOARD_PANELS, Settings
+from .theming import DEFAULT_THEME, all_theme_names, register as register_themes
 
 
 class KlipperTUI(App):
@@ -43,7 +48,8 @@ class KlipperTUI(App):
         ("b", "show_tab('mesh')", "Mesh"),
         ("w", "show_tab('webcam')", "Webcam"),
         ("g", "show_tab('graph')", "Graph"),
-        ("3", "show_tab('position')", "3D"),
+        ("t", "next_theme", "Theme"),
+        ("s", "show_tab('settings')", "Settings"),
         ("ctrl+e", "estop", "E-STOP"),
     ]
 
@@ -53,13 +59,23 @@ class KlipperTUI(App):
         port: int = 7125,
         webcam_url: str | None = None,
         renderer: str = "auto",
+        theme: str = DEFAULT_THEME,
     ) -> None:
         super().__init__()
         self.client = MoonrakerClient(host, port)
         self.sub_title = f"{host}:{port}"
         self.webcam_url = webcam_url or f"http://{host}/webcam/?action=snapshot"
         self.renderer = renderer
+        self.settings = Settings()
+        self._theme_name = self.settings.theme or theme
+        self._last_temp_store: dict | None = None
+        self._last_files: list | None = None
         self._ws_task: asyncio.Task | None = None
+
+        # Register before the stylesheet is parsed so theme variables resolve.
+        register_themes(self)
+        if self._theme_name in all_theme_names():
+            self.theme = self._theme_name
 
     # -- layout ---------------------------------------------------------------
 
@@ -67,12 +83,7 @@ class KlipperTUI(App):
         yield Header(show_clock=True)
         with TabbedContent(initial="dashboard"):
             with TabPane("Dashboard", id="dashboard"):
-                with VerticalScroll():
-                    with Container(id="dash-grid"):
-                        yield StatusPanel()
-                        yield TemperaturePanel()
-                    yield TempGraphPanel(compact=True)
-                    yield ExtruderPanel()
+                yield VerticalScroll(id="dash-panels")
             with TabPane("Graph", id="graph"):
                 yield TempGraphPanel()
             with TabPane("Console", id="console"):
@@ -80,21 +91,82 @@ class KlipperTUI(App):
             with TabPane("Move", id="move"):
                 with VerticalScroll():
                     yield ToolheadPanel()
+                    yield PositionPanel()
             with TabPane("Files", id="files"):
                 yield FilesPanel()
             with TabPane("Mesh", id="mesh"):
                 with VerticalScroll():
                     yield BedMeshPanel()
-            with TabPane("Position", id="position"):
-                yield PositionPanel()
             with TabPane("Webcam", id="webcam"):
                 yield WebcamPanel(self.webcam_url, self.renderer)
+            with TabPane("Settings", id="settings"):
+                with VerticalScroll():
+                    yield SettingsPanel(self.settings)
         yield Static("", id="statusbar")
         yield Footer()
+
+    # -- dashboard composition ------------------------------------------------
+
+    def _make_panel(self, key: str):
+        """A fresh instance of a panel, for mounting on the dashboard."""
+        if key == "status":
+            return StatusPanel()
+        if key == "temperature":
+            return TemperaturePanel()
+        if key == "tempgraph":
+            return TempGraphPanel(compact=True)
+        if key == "tuning":
+            return TuningPanel()
+        if key == "extruder":
+            return ExtruderPanel()
+        if key == "toolhead":
+            return ToolheadPanel()
+        if key == "bedmesh":
+            return BedMeshPanel()
+        if key == "position":
+            return PositionPanel()
+        if key == "webcam":
+            return WebcamPanel(self.webcam_url, self.renderer)
+        if key == "console":
+            return ConsolePanel()
+        if key == "files":
+            return FilesPanel()
+        return None
+
+    async def rebuild_dashboard(self) -> None:
+        """Remount the dashboard from the saved panel selection.
+
+        Panels are created and destroyed rather than merely hidden, so a panel
+        switched off stops doing work (the webcam stops polling, for one).
+        Removal is awaited: mounting a replacement before the old widget is
+        gone collides on the panel's id.
+        """
+        container = self.query_one("#dash-panels", VerticalScroll)
+        await container.remove_children()
+        for key in DASHBOARD_PANELS:
+            if self.settings.visible(key):
+                panel = self._make_panel(key)
+                if panel is not None:
+                    panel.add_class("on-dashboard")
+                    await container.mount(panel)
+        self.call_after_refresh(self._prime_new_panels)
+
+    def _prime_new_panels(self) -> None:
+        """Give freshly mounted panels the state they missed."""
+        if self.client.status:
+            self._handle_status(self.client.status)
+        if self._last_temp_store:
+            for graph in self.query(TempGraphPanel):
+                graph.seed(self._last_temp_store)
+        if self._last_files is not None:
+            for files in self.query(FilesPanel):
+                files.load_files(self._last_files)
 
     # -- lifecycle ------------------------------------------------------------
 
     def on_mount(self) -> None:
+        self.run_worker(self.rebuild_dashboard())
+
         self.client.on_status(self._handle_status)
         self.client.on_gcode_response(self._handle_gcode_response)
         self.client.on_connection_change(self._handle_conn)
@@ -108,14 +180,13 @@ class KlipperTUI(App):
 
     def _handle_status(self, status: dict) -> None:
         try:
-            self.query_one(StatusPanel).update_status(
-                status, self.client.klippy_state
-            )
-            self.query_one(TemperaturePanel).update_status(status)
-            self.query_one(ExtruderPanel).update_status(status)
-            self.query_one(BedMeshPanel).update_status(status)
-            self.query_one(PositionPanel).update_status(status)
-            # Two instances: the dashboard's compact one and the Graph tab.
+            for panel in self.query(StatusPanel):
+                panel.update_status(status, self.client.klippy_state)
+            for panel_type in (TemperaturePanel, ExtruderPanel, BedMeshPanel,
+                               PositionPanel, TuningPanel):
+                for panel in self.query(panel_type):
+                    panel.update_status(status)
+            # A panel can appear on its own tab and on the dashboard at once.
             for graph in self.query(TempGraphPanel):
                 graph.append_live(status)
         except Exception:
@@ -124,7 +195,8 @@ class KlipperTUI(App):
 
     def _handle_gcode_response(self, text: str) -> None:
         try:
-            self.query_one(ConsolePanel).write_response(text)
+            for console in self.query(ConsolePanel):
+                console.write_response(text)
         except Exception:
             pass
 
@@ -134,38 +206,68 @@ class KlipperTUI(App):
         except Exception:
             return
         if connected:
-            color = "#4caf50" if klippy_state == "ready" else "#ff9800"
+            color = "$success" if klippy_state == "ready" else "$warning"
             bar.update(
-                f"[{color}]●[/] connected  [#9e9e9e]klippy:[/] {klippy_state}"
+                f"[{color}]●[/] connected  [$text-muted]klippy:[/] "
+                f"{klippy_state}"
             )
             if klippy_state == "ready":
                 self.refresh_files()
                 self.run_worker(self._seed_graph())
         else:
-            bar.update("[#D41216]●[/] disconnected — retrying…")
+            bar.update("[$error]●[/] disconnected — retrying…")
 
     # -- helpers --------------------------------------------------------------
 
+    def _console_write(self, method: str, text: str) -> None:
+        for console in self.query(ConsolePanel):
+            getattr(console, method)(text)
+
     async def send(self, script: str, echo: bool = True) -> None:
-        console = self.query_one(ConsolePanel)
         if echo:
-            console.write_echo(script.replace("\n", " ; "))
+            self._console_write("write_echo", script.replace("\n", " ; "))
         try:
             await self.client.gcode(script)
         except MoonrakerError as exc:
-            console.write_system(f"error: {exc}")
+            self._console_write("write_system", f"error: {exc}")
             self.notify(str(exc), severity="error", title="Command failed")
 
-    def _float(self, widget_id: str, default: float) -> float:
+    def _float(self, widget_id: str, default: float,
+               within=None) -> float:
+        """Read a numeric input, scoped to a panel when one is given.
+
+        Panels can exist twice (own tab plus dashboard), so an unscoped
+        query would be ambiguous.
+        """
+        node = within if within is not None else self
         try:
-            return float(self.query_one(widget_id, Input).value)
-        except (ValueError, TypeError):
+            return float(node.query_one(widget_id, Input).value)
+        except Exception:
             return default
+
+    @staticmethod
+    def _owner(widget, panel_type):
+        """The panel instance containing this widget, or None."""
+        for node in widget.ancestors:
+            if isinstance(node, panel_type):
+                return node
+        return None
 
     # -- actions --------------------------------------------------------------
 
     def action_show_tab(self, tab: str) -> None:
         self.query_one(TabbedContent).active = tab
+
+    def action_next_theme(self) -> None:
+        names = all_theme_names()
+        try:
+            index = names.index(self.theme)
+        except ValueError:
+            index = -1
+        self.theme = names[(index + 1) % len(names)]
+        self.settings.theme = self.theme
+        self.settings.save()
+        self.notify(self.theme, title="Theme")
 
     async def action_estop(self) -> None:
         try:
@@ -180,6 +282,7 @@ class KlipperTUI(App):
     async def _seed_graph(self) -> None:
         try:
             store = await self.client.temperature_store()
+            self._last_temp_store = store
             for graph in self.query(TempGraphPanel):
                 graph.seed(store)
         except Exception:
@@ -188,7 +291,9 @@ class KlipperTUI(App):
     async def _load_files(self) -> None:
         try:
             files = await self.client.list_gcode_files()
-            self.query_one(FilesPanel).load_files(files)
+            self._last_files = files
+            for panel in self.query(FilesPanel):
+                panel.load_files(files)
         except (MoonrakerError, Exception):
             pass
 
@@ -203,6 +308,21 @@ class KlipperTUI(App):
         console.push_history(cmd)
         event.input.value = ""
         await self.send(cmd)
+
+    @on(Input.Submitted, "#tn-speed-input")
+    @on(Input.Submitted, "#tn-flow-input")
+    async def _tuning_submit(self, event: Input.Submitted) -> None:
+        key = "speed" if "speed" in (event.input.id or "") else "flow"
+        try:
+            value = float(event.value)
+        except ValueError:
+            return
+        event.input.value = ""
+        panel = self._owner(event.input, TuningPanel) or next(
+            iter(self.query(TuningPanel)), None)
+        if panel is None:
+            return
+        await self.send(panel.command_for(key, value))
 
     async def on_key(self, event: events.Key) -> None:
         if event.key not in ("up", "down"):
@@ -250,10 +370,12 @@ class KlipperTUI(App):
             await self.send(f"G28 {bid[-1].upper()}")
         elif bid.startswith("th-step-"):
             raw = bid.removeprefix("th-step-").replace("_", ".")
-            self.query_one(ToolheadPanel).step = float(raw)
+            owner = self._owner(event.button, ToolheadPanel)
+            if owner is not None:
+                owner.step = float(raw)
         elif bid in ("th-x-neg", "th-x-pos", "th-y-neg", "th-y-pos",
                      "th-z-neg", "th-z-pos"):
-            panel = self.query_one(ToolheadPanel)
+            panel = self._owner(event.button, ToolheadPanel)
             axis = bid.split("-")[1].upper()
             direction = 1 if bid.endswith("pos") else -1
             await self.send(panel.jog_gcode(axis, direction))
@@ -264,7 +386,7 @@ class KlipperTUI(App):
 
         # Extruder
         elif bid in ("ex-extrude", "ex-retract"):
-            panel = self.query_one(ExtruderPanel)
+            panel = self._owner(event.button, ExtruderPanel)
             if not panel.can_extrude(self.client.status):
                 self.notify(
                     "Hotend below min_extrude_temp (170°C)",
@@ -272,14 +394,16 @@ class KlipperTUI(App):
                     title="Too cold",
                 )
                 return
-            amount = self._float("#ex-amount", 25)
-            feed = self._float("#ex-feedrate", 5)
+            amount = self._float("#ex-amount", 25, panel)
+            feed = self._float("#ex-feedrate", 5, panel)
             direction = 1 if bid == "ex-extrude" else -1
             await self.send(panel.move_gcode(amount, feed, direction))
-        elif bid == "ex-load":
-            await self._filament_macro("LOAD_FILAMENT")
-        elif bid == "ex-unload":
-            await self._filament_macro("UNLOAD_FILAMENT")
+        elif bid in ("ex-load", "ex-unload"):
+            # Runs in a worker so the preheat dialog can be awaited.
+            owner = self._owner(event.button, ExtruderPanel)
+            if owner is not None:
+                self.run_worker(
+                    self._filament(bid == "ex-load", owner), exclusive=True)
         elif bid == "ex-rt-apply":
             length = self.query_one("#ex-rt-len", Input).value.strip()
             speed = self.query_one("#ex-rt-speed", Input).value.strip()
@@ -312,24 +436,60 @@ class KlipperTUI(App):
             on = self.query_one("#tempgraph-panel", TempGraphPanel).toggle_targets()
             event.button.label = "Targets" if on else "No targets"
 
+        # Settings
+        elif bid.startswith("st-toggle-"):
+            key = bid.removeprefix("st-toggle-")
+            on = self.settings.toggle(key)
+            for panel in self.query(SettingsPanel):
+                panel.refresh_toggles()
+            self.run_worker(self.rebuild_dashboard(), exclusive=True)
+            label = DASHBOARD_PANELS.get(key, (key, False))[0]
+            self.notify(
+                f"{label} {'added to' if on else 'removed from'} dashboard",
+                title="Dashboard",
+            )
+
+        # Speed / flow multipliers
+        elif bid.startswith("tn-"):
+            panel = self._owner(event.button, TuningPanel)
+            _, key, rest = bid.split("-", 2)
+            if key not in FACTORS:
+                return
+            if rest == "up":
+                value = panel.nudge(key, 5)
+            elif rest == "down":
+                value = panel.nudge(key, -5)
+            elif rest.startswith("set-"):
+                value = float(rest.removeprefix("set-"))
+            else:
+                return
+            await self.send(panel.command_for(key, value))
+
         # 3D position
         elif bid in ("ps-left", "ps-right", "ps-up", "ps-down"):
-            panel = self.query_one(PositionPanel)
+            panel = self._owner(event.button, PositionPanel)
             deltas = {
                 "ps-left": (-0.25, 0.0), "ps-right": (0.25, 0.0),
                 "ps-up": (0.0, 0.15), "ps-down": (0.0, -0.15),
             }
             panel.rotate(*deltas[bid])
+        elif bid == "ps-zoom-in":
+            self._owner(event.button, PositionPanel).zoom_by(1.25)
+        elif bid == "ps-zoom-out":
+            self._owner(event.button, PositionPanel).zoom_by(0.8)
+        elif bid == "ps-reset":
+            self._owner(event.button, PositionPanel).reset_view()
         elif bid == "ps-spin":
-            spinning = self.query_one(PositionPanel).toggle_spin()
+            spinning = self._owner(event.button, PositionPanel).toggle_spin()
             event.button.label = "Spin" if spinning else "Paused"
 
         # Webcam
         elif bid == "wc-toggle":
-            running = self.query_one(WebcamPanel).toggle()
+            running = self._owner(event.button, WebcamPanel).toggle()
             event.button.label = "Pause" if running else "Resume"
         elif bid.startswith("wc-fps-"):
-            self.query_one(WebcamPanel).set_fps(int(bid.removeprefix("wc-fps-")))
+            self._owner(event.button, WebcamPanel).set_fps(
+                int(bid.removeprefix("wc-fps-")))
 
         # Bed mesh
         elif bid == "bm-calibrate":
@@ -341,34 +501,53 @@ class KlipperTUI(App):
         elif bid == "bm-clear":
             await self.send("BED_MESH_CLEAR")
 
-    async def _filament_macro(self, macro: str) -> None:
-        """Use the printer's own macro if defined, else a safe generic move."""
-        panel = self.query_one(ExtruderPanel)
+    async def _filament(self, load: bool, panel: ExtruderPanel) -> None:
+        """Load or unload, preheating first if the nozzle is too cold."""
+        action = "Loading" if load else "Unloading"
+
+        preheat = ""
         if not panel.can_extrude(self.client.status):
-            self.notify(
-                "Hotend below min_extrude_temp (170°C)",
-                severity="warning",
-                title="Too cold",
+            current = self.client.status.get("extruder", {}).get("temperature")
+            temp = await self.push_screen_wait(
+                PreheatScreen(action, current)
             )
-            return
-        macros = {
-            k.removeprefix("gcode_macro ").upper()
-            for k in self.client.status
-            if k.startswith("gcode_macro ")
-        }
-        if macro in macros:
-            await self.send(macro)
-            return
-        # No macro configured — fall back to a plain relative extrude move.
-        feed = self._float("#ex-feedrate", 5)
-        length = 50 if macro == "LOAD_FILAMENT" else -50
-        self.query_one(ConsolePanel).write_system(
-            f"{macro} macro not defined; using generic {length:+g}mm move"
+            if temp is None:
+                self._console_write(
+                    "write_system", f"{action.lower()} cancelled")
+                return
+            # M109 blocks until the nozzle reaches temperature.
+            preheat = f"M104 S{temp:.0f}\nM109 S{temp:.0f}\n"
+            self.notify(f"Heating to {temp:.0f}°C…", title=action)
+
+        length = self._float("#ex-fil-len", 1000, panel)
+        speed = self._float("#ex-fil-speed", 50, panel)
+        script = (
+            panel.load_gcode(length, speed) if load
+            else panel.unload_gcode(length, speed)
         )
-        await self.send(f"M83\nG1 E{length:g} F{feed * 60:g}\nM82")
+
+        self._console_write(
+            "write_system",
+            f"{action} {length:g}mm at {speed:g}mm/s"
+            + (" after preheat" if preheat else ""),
+        )
+        try:
+            # Heating plus a metre of filament takes minutes, not seconds.
+            await self.client.gcode(preheat + script, timeout=900)
+            self.notify(f"{action} complete", title="Filament")
+        except MoonrakerError as exc:
+            self._console_write("write_system", f"error: {exc}")
+            self.notify(str(exc), severity="error", title=action)
+
+    def _files_selection(self) -> str | None:
+        for panel in self.query(FilesPanel):
+            chosen = panel.selected_file()
+            if chosen:
+                return chosen
+        return None
 
     async def _start_print(self) -> None:
-        filename = self.query_one(FilesPanel).selected_file()
+        filename = self._files_selection()
         if not filename:
             self.notify("No file selected", severity="warning")
             return

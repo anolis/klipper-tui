@@ -8,9 +8,9 @@ from textual.widgets import Button, Label, Static
 
 # Blue (low) -> green (nominal) -> red (high), matching Mainsail's heightmap.
 GRADIENT = [
-    "#2196f3", "#03a9f4", "#00bcd4", "#009688",
-    "#4caf50", "#8bc34a", "#cddc39", "#ffeb3b",
-    "#ffc107", "#ff9800", "#ff5722", "#D41216",
+    "$accent", "#03a9f4", "#00bcd4", "#009688",
+    "$success", "#8bc34a", "#cddc39", "#ffeb3b",
+    "#ffc107", "$warning", "#ff5722", "$error",
 ]
 
 
@@ -45,11 +45,11 @@ class BedMeshPanel(Vertical):
                 name = "default" if "default" in saved else next(iter(saved))
                 matrix = saved[name].get("points") or []
                 profile = f"{name} (saved)"
-                note = "   [#ff9800]not loaded — mesh is NOT active[/]"
+                note = "   [$warning]not loaded — mesh is NOT active[/]"
 
         if not matrix or not any(matrix):
             self.query_one("#bm-info", Static).update(
-                "[#9e9e9e]No mesh loaded. Run Calibrate to probe the bed.[/]"
+                "[$text-muted]No mesh loaded. Run Calibrate to probe the bed.[/]"
             )
             self.query_one("#heightmap", Static).update("")
             return
@@ -59,11 +59,11 @@ class BedMeshPanel(Vertical):
         rng = hi - lo
 
         self.query_one("#bm-info", Static).update(
-            f"[#9e9e9e]Profile[/] [b]{profile}[/b]   "
-            f"[#9e9e9e]min[/] [b]{lo:+.3f}[/b]   "
-            f"[#9e9e9e]max[/] [b]{hi:+.3f}[/b]   "
-            f"[#9e9e9e]range[/] [b]{rng:.3f}mm[/b]   "
-            f"[#9e9e9e]{len(matrix[0])}x{len(matrix)} points[/]{note}"
+            f"[$text-muted]Profile[/] [b]{profile}[/b]   "
+            f"[$text-muted]min[/] [b]{lo:+.3f}[/b]   "
+            f"[$text-muted]max[/] [b]{hi:+.3f}[/b]   "
+            f"[$text-muted]range[/] [b]{rng:.3f}mm[/b]   "
+            f"[$text-muted]{len(matrix[0])}x{len(matrix)} points[/]{note}"
         )
         self.query_one("#heightmap", Static).update(
             self._render_heightmap(matrix, lo, hi)
@@ -80,11 +80,11 @@ class BedMeshPanel(Vertical):
             for z in row:
                 idx = int((z - lo) / rng * (len(GRADIENT) - 1))
                 idx = max(0, min(len(GRADIENT) - 1, idx))
-                cells.append(f"[{GRADIENT[idx]}]███[/]")
-            cells.append(f" [#9e9e9e]{max(row):+.3f}[/]")
+                cells.append(f"[{GRADIENT[idx]}]██[/]")
+            cells.append(f" [$text-muted]{max(row):+.3f}[/]")
             lines.append("".join(cells))
 
-        legend = "".join(f"[{c}]██[/]" for c in GRADIENT)
+        legend = "".join(f"[{c}]█[/]" for c in GRADIENT)
         lines.append("")
-        lines.append(f"[#9e9e9e]{lo:+.3f}[/] {legend} [#9e9e9e]{hi:+.3f}[/]")
+        lines.append(f"[$text-muted]{lo:+.3f}[/] {legend} [$text-muted]{hi:+.3f}[/]")
         return "\n".join(lines)

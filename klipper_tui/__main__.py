@@ -7,6 +7,7 @@ import logging
 import os
 
 from .app import KlipperTUI
+from .theming import DEFAULT_THEME, all_theme_names
 
 
 def main() -> None:
@@ -43,8 +44,16 @@ def main() -> None:
              "if detection fails, 'unicode'/'halfcell' for terminals without "
              "graphics support (e.g. gnome-terminal).",
     )
+    parser.add_argument(
+        "--theme",
+        choices=all_theme_names(),
+        default=os.environ.get("KLIPPER_THEME", DEFAULT_THEME),
+        help=f"Colour theme (default: {DEFAULT_THEME}). Press 't' to cycle.",
+    )
     args = parser.parse_args()
-    KlipperTUI(args.host, args.port, args.webcam_url, args.render).run()
+    KlipperTUI(
+        args.host, args.port, args.webcam_url, args.render, args.theme
+    ).run()
 
 
 if __name__ == "__main__":

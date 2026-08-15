@@ -43,6 +43,7 @@ class WebcamPanel(Vertical):
         self._timer = None
         self._client: httpx.AsyncClient | None = None
         self._fail_count = 0
+        self._aspect: float | None = None
 
     def compose(self) -> ComposeResult:
         yield Label("Webcam", classes="panel-title")
@@ -87,12 +88,40 @@ class WebcamPanel(Vertical):
         return self.running
 
     def _update_info(self, extra: str = "") -> None:
-        state = "[#4caf50]live[/]" if self.running else "[#ff9800]paused[/]"
+        state = "[$success]live[/]" if self.running else "[$warning]paused[/]"
         self.query_one("#wc-info", Static).update(
-            f"{state}   [#9e9e9e]{self.fps} fps[/]   "
-            f"[#9e9e9e]renderer[/] {self.renderer_name}   "
-            f"[#9e9e9e]{self.snapshot_url}[/]{extra}"
+            f"{state}   [$text-muted]{self.fps} fps[/]   "
+            f"[$text-muted]renderer[/] {self.renderer_name}   "
+            f"[$text-muted]{self.snapshot_url}[/]{extra}"
         )
+
+    def _fit(self, aspect: float) -> None:
+        """Size the image widget so the frame keeps its shape.
+
+        A terminal cell is roughly twice as tall as it is wide, so the cell
+        counts must be divided by that ratio to get the displayed shape.
+        """
+        if aspect <= 0:
+            return
+        image = self.query_one("#wc-image")
+        avail_w = self.size.width - 4    # panel padding plus image border
+        avail_h = self.size.height - 8   # title, controls, info, border
+        if avail_w < 4 or avail_h < 3:
+            return
+
+        CELL = 2.0  # cell height / cell width
+        if avail_w / (avail_h * CELL) > aspect:
+            height = avail_h
+            width = max(4, int(round(aspect * height * CELL)))
+        else:
+            width = avail_w
+            height = max(3, int(round(width / (aspect * CELL))))
+
+        # width/height above are the content box; the round border adds a cell
+        # on each side, so grow the styled size to keep the picture's shape.
+        image.styles.width = width + 2
+        image.styles.height = height + 2
+        self._aspect = aspect
 
     async def _tick(self) -> None:
         if not self.running or self._client is None:
@@ -102,6 +131,8 @@ class WebcamPanel(Vertical):
             resp.raise_for_status()
             frame = PILImage.open(io.BytesIO(resp.content))
             frame.load()
+            if frame.height:
+                self._fit(frame.width / frame.height)
             self.query_one("#wc-image").image = frame
             if self._fail_count:
                 self._fail_count = 0
@@ -111,5 +142,5 @@ class WebcamPanel(Vertical):
             # Only surface persistent failures; a dropped frame is not news.
             if self._fail_count in (3, 30):
                 self._update_info(
-                    f"   [#D41216]{type(exc).__name__}: {exc}[/]"
+                    f"   [$error]{type(exc).__name__}: {exc}[/]"
                 )

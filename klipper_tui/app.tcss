@@ -1,32 +1,31 @@
-/* Mainsail-inspired dark theme.
-   primary #2196f3, surface #1e1e1e, background #121212, logo red #D41216 */
+/* All colours come from the active theme; see theming.py. */
 
 Screen {
-    background: #121212;
-    color: #e0e0e0;
+    background: $background;
+    color: $foreground;
 }
 
 Header {
-    background: #1e1e1e;
-    color: #ffffff;
+    background: $surface;
+    color: $foreground;
 }
 
 Footer {
-    background: #1e1e1e;
+    background: $surface;
 }
 
 /* --- Card / panel chrome ------------------------------------------------- */
 
 .panel {
-    background: #1e1e1e;
-    border: round #2f2f2f;
+    background: $surface;
+    border: round $panel-lighten-2;
     padding: 1 2;
     margin: 0 0 1 0;
     height: auto;
 }
 
 .panel-title {
-    color: #2196f3;
+    color: $accent;
     text-style: bold;
     padding: 0 0 1 0;
 }
@@ -37,25 +36,12 @@ Footer {
 }
 
 .dim {
-    color: #9e9e9e;
+    color: $text-muted;
 }
 
 .value {
-    color: #ffffff;
+    color: $foreground;
     text-style: bold;
-}
-
-.hot {
-    color: #D41216;
-    text-style: bold;
-}
-
-.ok {
-    color: #4caf50;
-}
-
-.warn {
-    color: #ff9800;
 }
 
 /* --- Buttons ------------------------------------------------------------- */
@@ -66,41 +52,41 @@ Button {
     border: none;
     margin: 0 1 1 0;
     padding: 0 2;
-    background: #2a2a2a;
-    color: #e0e0e0;
+    background: $panel-lighten-1;
+    color: $foreground;
 }
 
 Button:hover {
-    background: #3a3a3a;
+    background: $panel-lighten-3;
 }
 
 Button.-primary {
-    background: #2196f3;
-    color: #ffffff;
+    background: $primary;
+    color: $button-color-foreground;
 }
 
 Button.-danger {
-    background: #D41216;
-    color: #ffffff;
+    background: $error;
+    color: $button-color-foreground;
 }
 
 Button.-success {
-    background: #4caf50;
-    color: #ffffff;
+    background: $success;
+    color: $button-color-foreground;
 }
 
 /* --- Tabs ---------------------------------------------------------------- */
 
 Tabs {
-    background: #1e1e1e;
+    background: $surface;
 }
 
 Tab {
-    color: #9e9e9e;
+    color: $text-muted;
 }
 
 Tab.-active {
-    color: #2196f3;
+    color: $accent;
     text-style: bold;
 }
 
@@ -118,29 +104,25 @@ TabPane {
     height: auto;
 }
 
-#status-panel {
-    height: auto;
-}
-
-#temp-panel {
+#status-panel, #temp-panel {
     height: auto;
 }
 
 DataTable {
     height: auto;
     max-height: 12;
-    background: #1e1e1e;
+    background: $surface;
 }
 
 DataTable > .datatable--header {
-    background: #1e1e1e;
-    color: #2196f3;
+    background: $surface;
+    color: $accent;
     text-style: bold;
 }
 
 DataTable > .datatable--cursor {
-    background: #2196f3;
-    color: #ffffff;
+    background: $primary;
+    color: $button-color-foreground;
 }
 
 ProgressBar {
@@ -148,57 +130,40 @@ ProgressBar {
 }
 
 Bar > .bar--bar {
-    color: #2196f3;
+    color: $primary;
 }
 
 Bar > .bar--complete {
-    color: #4caf50;
+    color: $success;
 }
 
 /* --- Console ------------------------------------------------------------- */
 
 #console-log {
-    background: #121212;
-    border: round #2f2f2f;
+    background: $background;
+    border: round $panel-lighten-2;
     height: 1fr;
 }
 
-#console-input {
-    background: #1e1e1e;
-    border: round #2f2f2f;
-}
-
-#console-input:focus {
-    border: round #2196f3;
-}
-
 Input {
-    background: #1e1e1e;
-    border: round #2f2f2f;
-    color: #e0e0e0;
+    background: $surface;
+    border: round $panel-lighten-2;
+    color: $foreground;
 }
 
 Input:focus {
-    border: round #2196f3;
+    border: round $accent;
 }
 
-/* --- Motion / extruder controls ------------------------------------------ */
-
-.control-grid {
-    layout: grid;
-    grid-size: 3;
-    grid-gutter: 1;
-    height: auto;
-    width: auto;
-}
+/* --- Rows of controls ---------------------------------------------------- */
 
 .btn-row {
     height: auto;
     width: 100%;
 }
 
-/* Inputs default to filling their container, which pushes sibling buttons
-   off-screen inside a Horizontal row. Give them a fixed width instead. */
+/* Inputs fill their container by default, which pushes sibling buttons off
+   the panel inside a Horizontal row. Give them a fixed width instead. */
 .btn-row Input {
     width: 16;
     height: 3;
@@ -225,16 +190,12 @@ Input:focus {
     content-align: left middle;
 }
 
-.spacer {
-    width: 1fr;
-}
-
 /* --- Heightmap ----------------------------------------------------------- */
 
 #heightmap {
     height: auto;
-    background: #1e1e1e;
-    border: round #2f2f2f;
+    background: $surface;
+    border: round $panel-lighten-2;
     padding: 1;
 }
 
@@ -250,12 +211,11 @@ Input:focus {
 
 #tg-chart {
     height: 1fr;
-    background: #1a1a1a;
-    border: round #2f2f2f;
+    background: $surface-darken-1;
+    border: round $panel-lighten-2;
     padding: 0 1;
 }
 
-/* Compact dashboard variant: fixed height, no controls. */
 /* Size to content so the panel's own padding cannot clip the chart. */
 #tempgraph-dash {
     height: auto;
@@ -263,6 +223,32 @@ Input:focus {
 
 #tempgraph-dash #tg-chart {
     height: 11;
+}
+
+/* --- Preheat modal ------------------------------------------------------- */
+
+PreheatScreen {
+    align: center middle;
+}
+
+#preheat-box {
+    width: 72;
+    height: auto;
+    padding: 1 2;
+    background: $surface;
+    border: thick $warning;
+}
+
+/* --- Speed & flow -------------------------------------------------------- */
+
+#tuning-panel {
+    height: auto;
+}
+
+#tuning-panel Input {
+    width: 12;
+    height: 3;
+    margin: 0 1 1 0;
 }
 
 /* --- 3D position --------------------------------------------------------- */
@@ -277,8 +263,8 @@ Input:focus {
 
 #ps-view {
     height: 1fr;
-    background: #0d0d12;
-    border: round #ff9966;
+    background: $background;
+    border: round $accent;
     padding: 0 1;
 }
 
@@ -288,10 +274,11 @@ Input:focus {
     padding: 1 2;
 }
 
+/* Size is set from the frame's aspect ratio at runtime; see webcam.py. */
 #wc-image {
-    width: 100%;
-    height: 1fr;
-    border: round #2f2f2f;
+    width: auto;
+    height: auto;
+    border: round $panel-lighten-2;
 }
 
 /* --- Files --------------------------------------------------------------- */
@@ -299,4 +286,57 @@ Input:focus {
 #file-table {
     height: 1fr;
     max-height: 100%;
+}
+
+/* --- Settings ------------------------------------------------------------ */
+
+.setting-row {
+    height: 3;
+}
+
+.setting-row Button {
+    min-width: 12;
+    width: 12;
+}
+
+.setting-label {
+    height: 3;
+    content-align: left middle;
+    color: $foreground;
+}
+
+Button.-muted {
+    background: $panel;
+    color: $text-muted;
+}
+
+#settings-panel {
+    height: auto;
+}
+
+/* --- Panels hosted on the dashboard -------------------------------------- */
+/* Tab panels size themselves with 1fr, which cannot work inside a scrolling
+   dashboard. Give each a fixed height and card chrome instead. */
+
+.on-dashboard {
+    height: auto;
+    background: $surface;
+    border: round $panel-lighten-2;
+    padding: 1 2;
+    margin: 0 0 1 0;
+}
+
+.on-dashboard #console-log {
+    height: 12;
+}
+
+.on-dashboard #ps-view {
+    height: 18;
+}
+
+
+
+.on-dashboard #file-table {
+    height: 12;
+    max-height: 12;
 }

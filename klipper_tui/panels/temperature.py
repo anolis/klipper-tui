@@ -47,7 +47,7 @@ class TemperaturePanel(Vertical):
 
         speed = (fan.get("speed") or 0) * 100
         self.query_one("#tp-fan", Static).update(
-            f"[#9e9e9e]Part fan[/] [b]{speed:.0f}%[/b]"
+            f"[$text-muted]Part fan[/] [b]{speed:.0f}%[/b]"
         )
 
     def _heater_line(self, label: str, obj: dict) -> str:
@@ -59,12 +59,12 @@ class TemperaturePanel(Vertical):
         if target:
             # Colour by how far the heater still has to climb.
             delta = abs((current or 0) - target)
-            color = "#4caf50" if delta < 2 else "#ff9800"
+            color = "$success" if delta < 2 else "$warning"
             tgt = f"[{color}]{target:.0f}°C[/]"
         else:
-            tgt = "[#9e9e9e]off[/]"
+            tgt = "[$text-muted]off[/]"
 
         return (
-            f"[#9e9e9e]{label:<8}[/][b]{cur}[/b]°C [#9e9e9e]/[/] {tgt}"
-            f"   [#9e9e9e]power[/] {power:.0f}%"
+            f"[$text-muted]{label:<8}[/][b]{cur}[/b]°C [$text-muted]/[/] {tgt}"
+            f"   [$text-muted]power[/] {power:.0f}%"
         )

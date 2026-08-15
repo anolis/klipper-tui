@@ -45,7 +45,7 @@ class ToolheadPanel(Vertical):
     def watch_step(self, value: float) -> None:
         try:
             self.query_one("#th-step-label", Static).update(
-                f"[#9e9e9e]Step[/] [b #2196f3]{value:g}mm[/]  "
+                f"[$text-muted]Step[/] [b $accent]{value:g}mm[/]  "
             )
         except Exception:
             pass

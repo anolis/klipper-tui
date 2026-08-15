@@ -26,14 +26,31 @@ Use `-p/--port` if Moonraker is not on 7125.
 | --- | --- | --- |
 | `d` | Dashboard | Printer state, job progress, position, temperatures, presets, extruder |
 | `c` | Console | Live gcode responses and a command input with `↑`/`↓` history |
-| `m` | Move | Homing and jog controls with selectable step size |
+| `m` | Move | Homing, jog controls, and a rotating 3D view of the build volume |
 | `f` | Files | G-code file browser plus print/pause/resume/cancel |
 | `b` | Mesh | Bed mesh calibration and a colour heightmap |
 | `w` | Webcam | Live MJPEG feed with pause and frame-rate control |
 | `g` | Graph | Temperature history for hotend and bed, with target lines |
-| `3` | Position | Rotating 3D wireframe of the build volume with the toolhead marked |
 
-`Ctrl+E` sends an emergency stop. `q` quits.
+| `s` | Settings | Choose which panels appear on the dashboard |
+
+`Ctrl+E` sends an emergency stop. `t` cycles themes. `q` quits.
+
+## Themes
+
+Ships with `ominous` (default, dark with burgundy), `mainsail`, and `forge`,
+plus a selection of Textual's built-ins. Pick one with `--theme`, cycle with
+`t`, or use the command palette (`ctrl+p`). The choice is saved.
+
+Colours come from theme tokens rather than literals, so panels, charts, and
+the 3D view all follow the active theme.
+
+## Dashboard
+
+Any panel can be shown on the dashboard as well as on its own tab — toggle
+them on the Settings tab. Panels are created and destroyed as you toggle, so
+one that is switched off does no work. Settings are saved to
+`$XDG_CONFIG_HOME/klipper-tui/settings.json`.
 
 ## Webcam rendering
 

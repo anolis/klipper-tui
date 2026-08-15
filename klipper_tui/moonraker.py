@@ -191,8 +191,12 @@ class MoonrakerClient:
 
     # -- commands --------------------------------------------------------------
 
-    async def gcode(self, script: str) -> dict:
-        return await self.call("printer.gcode.script", {"script": script})
+    async def gcode(self, script: str, timeout: float = 15.0) -> dict:
+        # Scripts that heat and wait, or feed a metre of filament, run far
+        # longer than a normal command.
+        return await self.call(
+            "printer.gcode.script", {"script": script}, timeout=timeout
+        )
 
     async def emergency_stop(self) -> dict:
         return await self.call("printer.emergency_stop")

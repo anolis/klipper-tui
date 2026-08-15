@@ -17,8 +17,8 @@ RANGES = [5, 10, 20]
 
 SERIES = [
     # key,       label,      temp colour, target colour
-    ("extruder", "Hotend", "#ff5722", "#7f2c14"),
-    ("heater_bed", "Bed", "#2196f3", "#12507f"),
+    ("extruder", "Hotend", "$hot", "$hot-dim"),
+    ("heater_bed", "Bed", "$bed", "$bed-dim"),
 ]
 
 
@@ -132,7 +132,7 @@ class TempGraphPanel(Vertical):
                 series.append((key, label, color, tcolor, temps, targets))
 
         if not series:
-            chart.update("[#9e9e9e]Waiting for temperature data…[/]")
+            chart.update("[$text-muted]Waiting for temperature data…[/]")
             legend.update("")
             return
 
@@ -161,10 +161,10 @@ class TempGraphPanel(Vertical):
             tgt_txt = f"{tgt:.0f}" if tgt else "off"
             parts.append(
                 f"[{color}]██[/] {label} [b]{temps[-1]:.1f}[/b]°C "
-                f"[#9e9e9e]/ {tgt_txt}[/]"
+                f"[$text-muted]/ {tgt_txt}[/]"
             )
         span = min(self.range_minutes, max(len(s[4]) for s in series) // 60 or 1)
-        parts.append(f"[#9e9e9e]last {span}m[/]")
+        parts.append(f"[$text-muted]last {span}m[/]")
         legend.update("   ".join(parts))
 
     def _plot(self, canvas: BrailleCanvas, data: list[float],
@@ -192,15 +192,15 @@ class TempGraphPanel(Vertical):
         n = len(rows)
         for i, row in enumerate(rows):
             value = hi - (hi - lo) * (i / max(1, n - 1))
-            out.append(f"[#9e9e9e]{value:6.1f}[/] [#2f2f2f]│[/]{row}")
+            out.append(f"[$text-muted]{value:6.1f}[/] [$panel-lighten-2]│[/]{row}")
 
         if self.compact:
             # No axis furniture on the dashboard; every row goes to the plot.
             return out
 
-        out.append(f"[#2f2f2f]       └{'─' * width}[/]")
+        out.append(f"[$panel-lighten-2]       └{'─' * width}[/]")
         # Time runs left (oldest) to right (now).
         span = f"-{self.range_minutes}m"
         gap = max(1, width - len(span) - 3)
-        out.append(f"[#9e9e9e]        {span}{' ' * gap}now[/]")
+        out.append(f"[$text-muted]        {span}{' ' * gap}now[/]")
         return out

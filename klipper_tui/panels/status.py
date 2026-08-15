@@ -35,7 +35,7 @@ class StatusPanel(Vertical):
 
         filename = stats.get("filename") or ""
         self.query_one("#st-file", Static).update(
-            f"[#9e9e9e]File[/]   {filename or '[#9e9e9e]none[/]'}"
+            f"[$text-muted]File[/]   {filename or '[$text-muted]none[/]'}"
         )
 
         progress = (sd.get("progress") or 0.0) * 100
@@ -45,26 +45,26 @@ class StatusPanel(Vertical):
         total_est = (elapsed / (progress / 100)) if progress > 1 else 0
         remaining = max(0, total_est - elapsed) if total_est else 0
         self.query_one("#st-times", Static).update(
-            f"[#9e9e9e]Elapsed[/] {duration(elapsed)}   "
-            f"[#9e9e9e]ETA[/] {duration(remaining)}   "
-            f"[#9e9e9e]{progress:.1f}%[/]"
+            f"[$text-muted]Elapsed[/] {duration(elapsed)}   "
+            f"[$text-muted]ETA[/] {duration(remaining)}   "
+            f"[$text-muted]{progress:.1f}%[/]"
         )
 
         pos = gcode_move.get("gcode_position") or toolhead.get("position") or []
         if len(pos) >= 3:
             self.query_one("#st-pos", Static).update(
-                f"[#9e9e9e]Pos[/]    X [b]{pos[0]:.2f}[/b]  "
+                f"[$text-muted]Pos[/]    X [b]{pos[0]:.2f}[/b]  "
                 f"Y [b]{pos[1]:.2f}[/b]  Z [b]{pos[2]:.3f}[/b]"
             )
 
         homed = toolhead.get("homed_axes", "")
         marks = " ".join(
-            f"[#4caf50]{ax.upper()}[/]" if ax in homed else f"[#D41216]{ax.upper()}[/]"
+            f"[$success]{ax.upper()}[/]" if ax in homed else f"[$error]{ax.upper()}[/]"
             for ax in "xyz"
         )
         speed = (gcode_move.get("speed_factor") or 1) * 100
         flow = (gcode_move.get("extrude_factor") or 1) * 100
         self.query_one("#st-homed", Static).update(
-            f"[#9e9e9e]Homed[/]  {marks}   "
-            f"[#9e9e9e]Speed[/] {speed:.0f}%   [#9e9e9e]Flow[/] {flow:.0f}%"
+            f"[$text-muted]Homed[/]  {marks}   "
+            f"[$text-muted]Speed[/] {speed:.0f}%   [$text-muted]Flow[/] {flow:.0f}%"
         )

@@ -23,20 +23,20 @@ class ConsolePanel(Vertical):
             if not line:
                 continue
             if line.startswith("!!"):
-                log.write(f"[#D41216 b]{self._esc(line)}[/]")
+                log.write(f"[$error b]{self._esc(line)}[/]")
             elif line.startswith("//"):
-                log.write(f"[#9e9e9e]{self._esc(line)}[/]")
+                log.write(f"[$text-muted]{self._esc(line)}[/]")
             else:
-                log.write(f"[#e0e0e0]{self._esc(line)}[/]")
+                log.write(f"[$foreground]{self._esc(line)}[/]")
 
     def write_echo(self, text: str) -> None:
         self.query_one("#console-log", RichLog).write(
-            f"[#2196f3 b]> {self._esc(text)}[/]"
+            f"[$accent b]> {self._esc(text)}[/]"
         )
 
     def write_system(self, text: str) -> None:
         self.query_one("#console-log", RichLog).write(
-            f"[#ff9800]{self._esc(text)}[/]"
+            f"[$warning]{self._esc(text)}[/]"
         )
 
     def push_history(self, cmd: str) -> None:

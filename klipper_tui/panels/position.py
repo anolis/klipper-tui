@@ -14,12 +14,12 @@ from textual.widgets import Button, Label, Static
 
 from ..braille import BrailleCanvas
 
-# LCARS-ish palette: warm amber structure, lavender accents, hot marker.
-C_FRAME = "#ff9966"
-C_FLOOR = "#9999cc"
-C_HEAD = "#ffcc00"
-C_DROP = "#cc6666"
-C_AXIS = "#99ccff"
+# Domain colours resolved from the active theme; see theming.py.
+C_FRAME = "$vol-frame"
+C_FLOOR = "$vol-floor"
+C_HEAD = "$vol-head"
+C_DROP = "$vol-drop"
+C_AXIS = "$accent"
 
 # Cube corners as unit coordinates, and the 12 edges joining them.
 CORNERS = [
@@ -38,6 +38,8 @@ class PositionPanel(Vertical):
         super().__init__(id="position-panel")
         self.yaw = 0.6
         self.tilt = 0.5
+        self.zoom = 1.0
+        self.pan = [0.0, 0.0]
         self.spinning = True
         self.pos = [0.0, 0.0, 0.0]
         self.limits = ([0.0, 0.0, 0.0], [245.0, 260.0, 400.0])
@@ -52,6 +54,9 @@ class PositionPanel(Vertical):
             yield Button("▲", id="ps-up")
             yield Button("▼", id="ps-down")
             yield Button("Spin", id="ps-spin", classes="-primary")
+            yield Button("+", id="ps-zoom-in")
+            yield Button("−", id="ps-zoom-out")
+            yield Button("Reset", id="ps-reset")
 
         yield Static("", id="ps-readout")
         yield Static("", id="ps-view", markup=True)
@@ -88,6 +93,22 @@ class PositionPanel(Vertical):
         self.spinning = not self.spinning
         return self.spinning
 
+    def zoom_by(self, factor: float) -> None:
+        self.zoom = max(0.4, min(6.0, self.zoom * factor))
+        self._redraw()
+
+    def pan_by(self, dx: float, dy: float) -> None:
+        # Pan in units of the fitted view, so it feels the same at any zoom.
+        self.pan[0] += dx / self.zoom
+        self.pan[1] += dy / self.zoom
+        self._redraw()
+
+    def reset_view(self) -> None:
+        self.yaw, self.tilt = 0.6, 0.5
+        self.zoom = 1.0
+        self.pan = [0.0, 0.0]
+        self._redraw()
+
     # -- projection ------------------------------------------------------------
 
     def _aspect(self) -> tuple[float, float, float]:
@@ -118,9 +139,9 @@ class PositionPanel(Vertical):
         ys = [p[1] for p in pts]
         span_x = max(xs) - min(xs) or 1.0
         span_y = max(ys) - min(ys) or 1.0
-        scale = min(cw / span_x, ch / span_y) * 0.88
-        off_x = cw / 2 - (max(xs) + min(xs)) / 2 * scale
-        off_y = ch / 2 - (max(ys) + min(ys)) / 2 * scale
+        scale = min(cw / span_x, ch / span_y) * 0.88 * self.zoom
+        off_x = cw / 2 - (max(xs) + min(xs)) / 2 * scale + self.pan[0] * cw
+        off_y = ch / 2 - (max(ys) + min(ys)) / 2 * scale + self.pan[1] * ch
         return scale, off_x, off_y
 
     def _project(self, u: float, v: float, w: float,
@@ -180,17 +201,18 @@ class PositionPanel(Vertical):
         view.update("\n".join(canvas.render()))
 
         homed = " ".join(
-            f"[#4caf50]{a.upper()}[/]" if a in self.homed
-            else f"[#D41216]{a.upper()}[/]"
+            f"[$success]{a.upper()}[/]" if a in self.homed
+            else f"[$error]{a.upper()}[/]"
             for a in "xyz"
         )
-        warn = "" if self.homed == "xyz" else "   [#ff9800]position unverified[/]"
+        warn = "" if self.homed == "xyz" else "   [$warning]position unverified[/]"
         readout.update(
             f"[{C_AXIS}]X[/] [b]{self.pos[0]:7.2f}[/b]  "
             f"[{C_AXIS}]Y[/] [b]{self.pos[1]:7.2f}[/b]  "
             f"[{C_AXIS}]Z[/] [b]{self.pos[2]:7.2f}[/b]   "
-            f"[#9e9e9e]homed[/] {homed}   "
-            f"[#9e9e9e]vol[/] {hi[0]:.0f}×{hi[1]:.0f}×{hi[2]:.0f}{warn}"
+            f"[$text-muted]homed[/] {homed}   "
+            f"[$text-muted]vol[/] {hi[0]:.0f}×{hi[1]:.0f}×{hi[2]:.0f}   "
+            f"[$text-muted]zoom[/] {self.zoom:.1f}×{warn}"
         )
 
     @staticmethod
