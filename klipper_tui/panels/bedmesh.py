@@ -2,16 +2,29 @@
 
 from __future__ import annotations
 
+import re
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Input, Label, Static
 
 # Blue (low) -> green (nominal) -> red (high), matching Mainsail's heightmap.
+# Deliberately literal, not theme tokens: the heightmap encodes measured
+# deviation, so the scale must mean the same thing under every theme.
 GRADIENT = [
-    "$accent", "#03a9f4", "#00bcd4", "#009688",
-    "$success", "#8bc34a", "#cddc39", "#ffeb3b",
-    "#ffc107", "$warning", "#ff5722", "$error",
+    "#2196f3", "#03a9f4", "#00bcd4", "#009688",
+    "#4caf50", "#8bc34a", "#cddc39", "#ffeb3b",
+    "#ffc107", "#ff9800", "#ff5722", "#d41216",
 ]
+
+
+# Klipper reports each probe result on the console. The wording changed
+# between releases, so both forms are accepted.
+PROBE_LINE = re.compile(
+    r"probe:?\s+at\s+(-?[\d.]+),\s*(-?[\d.]+)\s+"
+    r"(?:is|bed will contact at)\s+z\s*=\s*(-?[\d.]+)",
+    re.IGNORECASE,
+)
 
 
 class BedMeshPanel(Vertical):
@@ -23,6 +36,10 @@ class BedMeshPanel(Vertical):
         super().__init__(id="bedmesh-panel")
         self.algorithm = "lagrange"
         self._count_seeded = False
+        # Live probing state, populated from console output while a mesh runs.
+        self.live: dict[tuple[int, int], float] = {}
+        self.live_expected: tuple[int, int] | None = None
+        self.bounds: tuple[float, float, float, float] | None = None
 
     def compose(self) -> ComposeResult:
         yield Label("Bed Mesh", classes="panel-title")
@@ -45,6 +62,7 @@ class BedMeshPanel(Vertical):
         cfg = (status.get("configfile") or {}).get("config") or {}
         bm_cfg = cfg.get("bed_mesh") or {}
         self.algorithm = str(bm_cfg.get("algorithm", "lagrange")).lower()
+        self.bounds = self._parse_bounds(bm_cfg)
         if not self._count_seeded:
             configured = str(bm_cfg.get("probe_count", "")).replace(" ", "")
             if configured:
@@ -54,6 +72,10 @@ class BedMeshPanel(Vertical):
                     self.refresh_estimate()
                 except Exception:
                     pass
+
+        if self.live_expected is not None:
+            # A probe run is in progress; the live grid owns the display.
+            return
 
         mesh = status.get("bed_mesh", {})
         matrix = mesh.get("probed_matrix") or []
@@ -92,6 +114,91 @@ class BedMeshPanel(Vertical):
         self.query_one("#heightmap", Static).update(
             self._render_heightmap(matrix, lo, hi)
         )
+
+    # -- live probing ----------------------------------------------------------
+
+    @staticmethod
+    def _parse_bounds(bm_cfg: dict) -> tuple[float, float, float, float] | None:
+        def pair(value) -> tuple[float, float] | None:
+            try:
+                a, b = str(value).split(",")
+                return float(a), float(b)
+            except (ValueError, AttributeError):
+                return None
+
+        low = pair(bm_cfg.get("mesh_min"))
+        high = pair(bm_cfg.get("mesh_max"))
+        if low and high:
+            return low[0], low[1], high[0], high[1]
+        return None
+
+    def start_live(self, count: tuple[int, int]) -> None:
+        self.live.clear()
+        self.live_expected = count
+        self._redraw_live()
+
+    def stop_live(self) -> None:
+        self.live.clear()
+        self.live_expected = None
+
+    def add_probe(self, x: float, y: float, z: float) -> bool:
+        """Place one probed point on the grid. False if it cannot be mapped."""
+        if self.live_expected is None or self.bounds is None:
+            return False
+        x_cnt, y_cnt = self.live_expected
+        min_x, min_y, max_x, max_y = self.bounds
+        span_x = max_x - min_x
+        span_y = max_y - min_y
+        if span_x <= 0 or span_y <= 0:
+            return False
+        # Klipper probes in a serpentine order, so index by position rather
+        # than by arrival order.
+        col = round((x - min_x) / span_x * (x_cnt - 1)) if x_cnt > 1 else 0
+        row = round((y - min_y) / span_y * (y_cnt - 1)) if y_cnt > 1 else 0
+        col = max(0, min(x_cnt - 1, col))
+        row = max(0, min(y_cnt - 1, row))
+        self.live[(row, col)] = z
+        self._redraw_live()
+        return True
+
+    def _redraw_live(self) -> None:
+        if self.live_expected is None:
+            return
+        try:
+            info = self.query_one("#bm-info", Static)
+            heightmap = self.query_one("#heightmap", Static)
+        except Exception:
+            return
+
+        x_cnt, y_cnt = self.live_expected
+        total = x_cnt * y_cnt
+        done = len(self.live)
+        values = list(self.live.values())
+        lo = min(values) if values else 0.0
+        hi = max(values) if values else 0.0
+
+        info.update(
+            f"[$accent]probing[/]   [$text-muted]point[/] [b]{done}[/b]"
+            f"[$text-muted]/{total}[/]   "
+            f"[$text-muted]min[/] [b]{lo:+.3f}[/b]   "
+            f"[$text-muted]max[/] [b]{hi:+.3f}[/b]   "
+            f"[$text-muted]range[/] [b]{hi - lo:.3f}mm[/]"
+        )
+
+        rng = (hi - lo) or 1.0
+        lines = []
+        for row in reversed(range(y_cnt)):
+            cells = []
+            for col in range(x_cnt):
+                z = self.live.get((row, col))
+                if z is None:
+                    cells.append("[$panel-lighten-1]··[/]")
+                else:
+                    idx = int((z - lo) / rng * (len(GRADIENT) - 1))
+                    idx = max(0, min(len(GRADIENT) - 1, idx))
+                    cells.append(f"[{GRADIENT[idx]}]██[/]")
+            lines.append("".join(cells))
+        heightmap.update("\n".join(lines))
 
     def parse_count(self) -> tuple[int, int] | None:
         """Read the probe count field as an (x, y) pair."""

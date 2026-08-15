@@ -18,7 +18,7 @@ from textual.widgets import (
 )
 
 from .moonraker import MoonrakerClient, MoonrakerError
-from .panels.bedmesh import BedMeshPanel
+from .panels.bedmesh import PROBE_LINE, BedMeshPanel
 from .panels.confirm import ConfirmScreen
 from .panels.console import ConsolePanel
 from .panels.extruder import ExtruderPanel
@@ -217,6 +217,24 @@ class KlipperTUI(App):
         try:
             for console in self.query(ConsolePanel):
                 console.write_response(text)
+        except Exception:
+            pass
+        self._feed_live_mesh(text)
+
+    def _feed_live_mesh(self, text: str) -> None:
+        """Plot probe results as Klipper reports them during a mesh run."""
+        try:
+            panels = [p for p in self.query(BedMeshPanel)
+                      if p.live_expected is not None]
+            if not panels:
+                return
+            for line in text.splitlines():
+                match = PROBE_LINE.search(line)
+                if not match:
+                    continue
+                x, y, z = (float(match.group(i)) for i in (1, 2, 3))
+                for panel in panels:
+                    panel.add_probe(x, y, z)
         except Exception:
             pass
 
@@ -595,12 +613,37 @@ class KlipperTUI(App):
             f"{'homing then ' if prefix else ''}probing "
             f"{points} points (timeout {timeout / 60:.0f} min)",
         )
+
+        grid = count or self._configured_probe_count() or (10, 10)
+        for live in self.query(BedMeshPanel):
+            live.start_live(grid)
         try:
             await self.client.gcode(script, timeout=timeout)
             self.notify("Bed mesh complete", title="Bed mesh")
         except MoonrakerError as exc:
             self._console_write("write_system", f"error: {exc}")
             self.notify(str(exc), severity="error", title="Bed mesh")
+        finally:
+            # Hand the display back to the saved mesh either way.
+            for live in self.query(BedMeshPanel):
+                live.stop_live()
+                live.update_status(self.client.status)
+
+    def _configured_probe_count(self) -> tuple[int, int] | None:
+        cfg = (self.client.status.get("configfile") or {}).get("config") or {}
+        raw = str((cfg.get("bed_mesh") or {}).get("probe_count", "")).strip()
+        if not raw:
+            return None
+        parts = [p.strip() for p in raw.split(",") if p.strip()]
+        try:
+            values = [int(p) for p in parts]
+        except ValueError:
+            return None
+        if len(values) == 1:
+            return values[0], values[0]
+        if len(values) == 2:
+            return values[0], values[1]
+        return None
 
     async def _filament(self, load: bool, panel: ExtruderPanel) -> None:
         """Load or unload, preheating first if the nozzle is too cold."""
