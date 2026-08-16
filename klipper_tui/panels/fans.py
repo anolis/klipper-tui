@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Button, Label, Static
+from textual.widgets import Button, Input, Label, Static
 
 PRESETS = [0, 25, 50, 75, 100]
 BAR_WIDTH = 28
@@ -69,6 +69,7 @@ class FansPanel(Vertical):
         yield Label("Fans", classes="panel-title")
         yield Static("", id="fn-empty", classes="dim")
         yield Vertical(id="fn-list")
+        yield Static("", id="fn-note", classes="dim")
 
     def update_status(self, status: dict) -> None:
         found = sorted(name for name in status if is_fan(name))
@@ -103,6 +104,11 @@ class FansPanel(Vertical):
                        Button("+10", id=f"fn-up-{index}")]
             buttons += [Button(f"{p}%", id=f"fn-set-{index}-{p}")
                         for p in PRESETS]
+            buttons += [
+                Input(placeholder="%", id=f"fn-in-{index}",
+                      classes="fan-input", type="number"),
+                Button("Set", id=f"fn-apply-{index}", classes="-primary"),
+            ]
             rows.append(Horizontal(*buttons, classes="btn-row compact-row"))
         if rows:
             container.mount(*rows)
@@ -124,6 +130,46 @@ class FansPanel(Vertical):
                 pass
 
     # -- commands --------------------------------------------------------------
+
+    def note(self, message: str) -> None:
+        try:
+            self.query_one("#fn-note", Static).update(message)
+        except Exception:
+            pass
+
+    def read_custom(self, index: int) -> float | None:
+        """The typed speed for a fan, as a percentage. None if unusable."""
+        try:
+            raw = self.query_one(f"#fn-in-{index}", Input).value.strip()
+        except Exception:
+            return None
+        if not raw:
+            self.note("[$error]Enter a speed first.[/]")
+            return None
+        try:
+            percent = float(raw)
+        except ValueError:
+            self.note("[$error]Fan speed must be a number.[/]")
+            return None
+        if not 0 <= percent <= 100:
+            self.note("[$error]Fan speed must be between 0 and 100%.[/]")
+            return None
+        self.note("")
+        return percent
+
+    def clear_custom(self, index: int) -> None:
+        try:
+            self.query_one(f"#fn-in-{index}", Input).value = ""
+        except Exception:
+            pass
+
+    def index_of_input(self, widget_id: str) -> int | None:
+        if not widget_id.startswith("fn-in-"):
+            return None
+        try:
+            return int(widget_id.removeprefix("fn-in-"))
+        except ValueError:
+            return None
 
     def fan_at(self, index: int) -> str | None:
         return self.fans[index] if 0 <= index < len(self.fans) else None

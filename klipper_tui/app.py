@@ -842,6 +842,21 @@ class KlipperTUI(App):
         if panel is not None:
             panel.refresh_estimate()
 
+    @on(Input.Submitted, ".fan-input")
+    async def _fan_submit(self, event: Input.Submitted) -> None:
+        panel = self._owner(event.input, FansPanel)
+        if panel is None:
+            return
+        index = panel.index_of_input(event.input.id or "")
+        if index is None:
+            return
+        name = panel.fan_at(index)
+        percent = panel.read_custom(index)
+        if name is None or percent is None:
+            return
+        panel.clear_custom(index)
+        await self.send(speed_command(name, percent))
+
     @on(Input.Submitted, "#tn-speed-input")
     @on(Input.Submitted, "#tn-flow-input")
     async def _tuning_submit(self, event: Input.Submitted) -> None:
@@ -1006,6 +1021,12 @@ class KlipperTUI(App):
                 return
             if parts[1] == "set":
                 percent = float(parts[3])
+            elif parts[1] == "apply":
+                typed = panel.read_custom(index)
+                if typed is None:
+                    return
+                percent = typed
+                panel.clear_custom(index)
             else:
                 percent = panel.nudged(index,
                                        10.0 if parts[1] == "up" else -10.0)

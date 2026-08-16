@@ -222,6 +222,9 @@ Every fan the printer reports gets a row on the dashboard, with its speed and
 controls. Which fans exist is read from the printer rather than assumed, so a
 second part fan, a board fan, or a chamber fan all appear on their own.
 
+Alongside the presets each controllable fan has a field for any speed you
+like — type a percentage and press Enter, or use Set.
+
 How each is driven follows its type: the part cooling fan takes `M106`/`M107`,
 a `fan_generic` takes `SET_FAN_SPEED`. Fans Klipper runs itself — `heater_fan`,
 `controller_fan`, `temperature_fan` — are shown with their speed and marked

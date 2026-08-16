@@ -485,3 +485,7 @@ OfflineScreen {
 #fans-panel, #fn-list {
     height: auto;
 }
+
+.btn-row Input.fan-input {
+    width: 9;
+}
