@@ -127,6 +127,13 @@ values and needs to stay comparable between themes. The console resolves
 colours to concrete hex at write time, because `RichLog` renders Rich markup
 and cannot read `$token` styles.
 
+## After a cancelled print
+
+When a running job is cancelled — from here, from Mainsail, or from the
+printer's own screen — klipper-tui offers to turn the heaters off. It only asks
+if a job was actually running and something is still hot, so a print that
+finished normally, or one whose macro already cooled down, prompts nothing.
+
 ## After a restart
 
 `SAVE_CONFIG`, `FIRMWARE_RESTART`, and a power cycle all clear the heater

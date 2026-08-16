@@ -79,6 +79,8 @@ class KlipperTUI(App):
         # State captured when Klippy goes away, offered back when it returns.
         self._klippy_ready = False
         self._restore: dict | None = None
+        self._print_state: str | None = None
+        self._cooldown_pending = False
         self._last_files: list | None = None
         self._ws_task: asyncio.Task | None = None
 
@@ -217,6 +219,12 @@ class KlipperTUI(App):
             # Panels may not be mounted yet during the first status burst.
             pass
 
+        try:
+            self._watch_print_state(status)
+        except Exception:
+            # Never let a prompt failure interrupt the status stream.
+            pass
+
     def _handle_gcode_response(self, text: str) -> None:
         try:
             for console in self.query(ConsolePanel):
@@ -260,6 +268,59 @@ class KlipperTUI(App):
                 self.call_later(self._on_klippy_ready)
         else:
             bar.update("[$error]●[/] disconnected — retrying…")
+
+    def _watch_print_state(self, status: dict) -> None:
+        """Offer a cooldown when a job stops, however it was cancelled."""
+        state = (status.get("print_stats") or {}).get("state")
+        if state is None or state == self._print_state:
+            return
+        previous, self._print_state = self._print_state, state
+
+        # Only a job that was actually running counts. Connecting to a printer
+        # that was cancelled earlier must not prompt.
+        if state != "cancelled" or previous not in ("printing", "paused"):
+            return
+        if self._cooldown_pending:
+            return
+
+        extruder = round((status.get("extruder") or {}).get("target") or 0)
+        bed = round((status.get("heater_bed") or {}).get("target") or 0)
+        if not extruder and not bed:
+            return  # already cooling or off
+
+        self._cooldown_pending = True
+        self.call_later(lambda: self.run_worker(
+            self._offer_cooldown(extruder, bed), group="cooldown"))
+
+    async def _offer_cooldown(self, extruder: int, bed: int) -> None:
+        try:
+            still_on = []
+            if extruder:
+                still_on.append(f"hotend at {extruder}°C")
+            if bed:
+                still_on.append(f"bed at {bed}°C")
+            listed = " and ".join(still_on)
+
+            ok = await self.push_screen_wait(ConfirmScreen(
+                "Print cancelled",
+                f"The heaters are still on: {listed}. Turn them off?",
+                confirm_label="Cool down",
+            ))
+            if not ok:
+                self._console_write("write_system", "heaters left on")
+                return
+            self._console_write("write_system", "cooling down")
+            try:
+                await self.send(
+                    "SET_HEATER_TEMPERATURE HEATER=extruder TARGET=0\n"
+                    "SET_HEATER_TEMPERATURE HEATER=heater_bed TARGET=0",
+                    echo=False,
+                )
+                self.notify("Heaters off", title="Cooldown")
+            except MoonrakerError as exc:
+                self.notify(str(exc), severity="error", title="Cooldown")
+        finally:
+            self._cooldown_pending = False
 
     # -- restoring state across a restart -------------------------------------
 
