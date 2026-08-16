@@ -191,8 +191,12 @@ class PositionPanel(Vertical):
         depth instead of being a flat mass of one colour. The result is cached
         against the view, so a still model costs nothing to redraw.
         """
+        # Keyed on the drawing units, not the cell count: dropping to a
+        # quarter of the pixels while spinning leaves the cell count alone but
+        # changes every projected coordinate, and a cell-count key would serve
+        # the previous resolution's points at the new scale.
         key = (self.yaw, self.tilt, self.zoom, self.pan[0], self.pan[1],
-               len(self.model), canvas.width, canvas.height)
+               len(self.model), canvas.sub_width, canvas.sub_height)
         if key != self._model_cache_key:
             self._model_cache_key = key
             self._model_cache = self._build_model_pixels(fit)
@@ -470,7 +474,8 @@ class PositionPanel(Vertical):
             pixels_w, pixels_h,
             background=pixelgraph.resolve(self.app, "$surface"),
             resolve=lambda token: pixelgraph.resolve(self.app, token),
-            stroke=1 if self.spinning else 2)
+            stroke=1 if self.spinning else 2,
+            cells=(width, height))
 
     def _redraw(self) -> None:
         try:

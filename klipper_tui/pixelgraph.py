@@ -210,9 +210,15 @@ class PixelCanvas:
     """
 
     def __init__(self, width: int, height: int, background: str,
-                 resolve, stroke: int = 2) -> None:
+                 resolve, stroke: int = 2, cells: tuple[int, int] | None = None
+                 ) -> None:
+        # Both canvases mean the same thing by these: width and height count
+        # character cells, sub_width and sub_height count the units drawing
+        # happens in. Braille has 2x4 of the latter per cell; here they are
+        # pixels. Keeping the names honest is the whole point of the class.
         self.sub_width = width
         self.sub_height = height
+        self.width, self.height = cells or (width, height)
         self.stroke = max(1, stroke)
         self._resolve = resolve
         self._cache: dict[str, object] = {}

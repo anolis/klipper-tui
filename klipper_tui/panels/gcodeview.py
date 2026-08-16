@@ -253,7 +253,8 @@ class GcodeViewPanel(Vertical):
             pixels_w, pixels_h,
             background=self._resolve("$surface"),
             resolve=self._resolve,
-            stroke=2)
+            stroke=2,
+            cells=(width, height))
 
     def _render_toolpath(self, width: int, height: int):
         canvas = self._make_canvas(width, height)
