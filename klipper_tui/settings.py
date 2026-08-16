@@ -31,6 +31,12 @@ DASHBOARD_PANELS: dict[str, tuple[str, bool]] = {
 }
 
 
+def state_path(name: str) -> Path:
+    """Somewhere to keep regenerable data, kept out of the settings file."""
+    base = os.environ.get("XDG_STATE_HOME") or (Path.home() / ".local/state")
+    return Path(base) / "klipper-tui" / name
+
+
 def config_path() -> Path:
     base = os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")
     return Path(base) / "klipper-tui" / "settings.json"

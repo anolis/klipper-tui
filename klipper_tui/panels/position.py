@@ -6,6 +6,7 @@ toolhead marked and dropped to the bed so its footprint is readable.
 
 from __future__ import annotations
 
+import json
 import math
 
 from textual.app import ComposeResult
@@ -13,6 +14,7 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Label, Static
 
 from ..braille import BrailleCanvas
+from ..settings import state_path
 
 # Domain colours resolved from the active theme; see theming.py.
 C_FRAME = "$vol-frame"
@@ -21,6 +23,18 @@ C_HEAD = "$vol-head"
 C_DROP = "$vol-drop"
 C_AXIS = "$accent"
 C_MODEL = "$hot"
+
+# Shades from farthest to nearest. A braille cell carries one colour, so depth
+# has to be conveyed by shading rather than by any per-pixel effect.
+SHADE_STEPS = 8
+SHADE_MIN = 0.22      # how dark the farthest, lowest material goes
+DEFAULT_MODEL_RGB = (0xd1, 0x55, 0x3d)
+
+# Brightness mixes distance with height. There are no surface normals in a
+# point cloud, so height stands in for a light above and in front: the top of
+# an object catches more of it, which is what makes the form read as solid.
+DEPTH_WEIGHT = 0.55
+HEIGHT_WEIGHT = 0.45
 
 # Cube corners as unit coordinates, and the 12 edges joining them.
 CORNERS = [
@@ -49,6 +63,9 @@ class PositionPanel(Vertical):
         self.max_voxels = 6000
         self._last_e: float | None = None
         self._job: str | None = None
+        self._model_cache: list = []
+        self._model_cache_key: tuple | None = None
+        self._model_dirty = False
         self.pos = [0.0, 0.0, 0.0]
         self.limits = ([0.0, 0.0, 0.0], [245.0, 260.0, 400.0])
         self.homed = ""
@@ -80,6 +97,12 @@ class PositionPanel(Vertical):
 
     def on_mount(self) -> None:
         self.set_interval(0.1, self._tick)
+        # Persisting costs a file write, so do it on a slow timer rather than
+        # on every point.
+        self.set_interval(15.0, self._persist_model)
+
+    def on_unmount(self) -> None:
+        self._persist_model()
 
     def _tick(self) -> None:
         if self.spinning:
@@ -102,6 +125,88 @@ class PositionPanel(Vertical):
                            [float(v) for v in hi[:3]])
         self.homed = toolhead.get("homed_axes", "")
 
+    def _model_shades(self) -> list[str]:
+        """A far-to-near ramp derived from the theme's material colour."""
+        base = DEFAULT_MODEL_RGB
+        try:
+            raw = (self.app.current_theme.variables or {}).get("hot")
+            if isinstance(raw, str) and raw.startswith("#") and len(raw) == 7:
+                base = tuple(int(raw[i:i + 2], 16) for i in (1, 3, 5))
+        except Exception:
+            pass
+
+        shades = []
+        for step in range(SHADE_STEPS):
+            factor = SHADE_MIN + (1.0 - SHADE_MIN) * step / (SHADE_STEPS - 1)
+            shades.append("#%02x%02x%02x" % tuple(
+                max(0, min(255, int(channel * factor))) for channel in base
+            ))
+        return shades
+
+    def _draw_model(self, canvas: BrailleCanvas,
+                    fit: tuple[float, float, float]) -> None:
+        """Draw deposited material, shaded so the shape reads as solid.
+
+        Only the nearest point per pixel is kept, which gives occlusion without
+        sorting, and brightness combines distance with height so the form has
+        depth instead of being a flat mass of one colour. The result is cached
+        against the view, so a still model costs nothing to redraw.
+        """
+        key = (self.yaw, self.tilt, self.zoom, self.pan[0], self.pan[1],
+               len(self.model), canvas.width, canvas.height)
+        if key != self._model_cache_key:
+            self._model_cache_key = key
+            self._model_cache = self._build_model_pixels(fit)
+        for (sx, sy), shade in self._model_cache:
+            canvas.set(sx, sy, shade)
+
+    def _build_model_pixels(self, fit: tuple[float, float, float]) -> list:
+        lo, hi = self.limits
+        step = self.voxel_mm
+        ax, ay, az = self._aspect()
+        cos_y, sin_y = math.cos(self.yaw), math.sin(self.yaw)
+        cos_t, sin_t = math.cos(self.tilt), math.sin(self.tilt)
+        scale, off_x, off_y = fit
+        sx_lo, sy_lo = lo[0], lo[1]
+        span_x = max(1e-6, hi[0] - lo[0])
+        span_y = max(1e-6, hi[1] - lo[1])
+        span_z = max(1e-6, hi[2] - lo[2])
+
+        # One pass: for each pixel remember only the nearest point, along with
+        # the values needed to shade it.
+        nearest: dict[tuple[int, int], tuple[float, float]] = {}
+        for vx, vy, vz in self.model:
+            x = ((vx * step - sx_lo) / span_x - 0.5) * ax
+            y = ((vy * step - sy_lo) / span_y - 0.5) * ay
+            z = ((vz * step - lo[2]) / span_z - 0.5) * az
+            rx = x * cos_y - y * sin_y
+            ry = x * sin_y + y * cos_y
+            depth = ry * cos_t - z * sin_t
+            pixel = (int(off_x + rx * scale),
+                     int(off_y + (-ry * sin_t - z * cos_t) * scale))
+            previous = nearest.get(pixel)
+            if previous is None or depth < previous[0]:
+                nearest[pixel] = (depth, z)
+
+        if not nearest:
+            return []
+
+        depths = [v[0] for v in nearest.values()]
+        heights = [v[1] for v in nearest.values()]
+        near, far = min(depths), max(depths)
+        low, high = min(heights), max(heights)
+        depth_spread = (far - near) or 1.0
+        height_spread = (high - low) or 1.0
+        shades = self._model_shades()
+        top = SHADE_STEPS - 1
+
+        pixels = []
+        for pixel, (depth, height) in nearest.items():
+            level = (DEPTH_WEIGHT * ((far - depth) / depth_spread)
+                     + HEIGHT_WEIGHT * ((height - low) / height_spread))
+            pixels.append((pixel, shades[max(0, min(top, int(level * top)))]))
+        return pixels
+
     def _record_motion(self, status: dict) -> None:
         """Accumulate deposited material from the live motion report.
 
@@ -111,10 +216,14 @@ class PositionPanel(Vertical):
         stats = status.get("print_stats") or {}
         job = stats.get("filename") or None
         if job != self._job:
-            # A different job (or none) starts a fresh model.
+            # A different job starts a fresh model, but the same job picked up
+            # again — after restarting this app mid-print — restores what was
+            # already drawn.
+            self._persist_model()
             self._job = job
-            self.model.clear()
             self._last_e = None
+            self.model = self._load_model(job) if job else set()
+            self._model_cache_key = None
 
         report = status.get("motion_report") or {}
         live = report.get("live_position")
@@ -133,6 +242,54 @@ class PositionPanel(Vertical):
             self.model.add((
                 int(x / step), int(y / step), int(z / step),
             ))
+            self._model_dirty = True
+
+    # -- persistence -----------------------------------------------------------
+
+    @staticmethod
+    def _model_file():
+        return state_path("model.json")
+
+    def _load_model(self, job: str) -> set:
+        """Restore the model for this job, if the saved one belongs to it."""
+        path = self._model_file()
+        if not path.is_file():
+            return set()
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, ValueError):
+            return set()
+        if data.get("job") != job:
+            return set()
+        try:
+            voxels = {tuple(int(v) for v in point)
+                      for point in data.get("voxels", [])}
+        except (TypeError, ValueError):
+            return set()
+        # A saved model from a different grid size would be misplaced.
+        if data.get("voxel_mm") != self.voxel_mm:
+            return set()
+        return {v for v in voxels if len(v) == 3}
+
+    def _persist_model(self) -> None:
+        if not self._model_dirty:
+            return
+        self._model_dirty = False
+        path = self._model_file()
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "job": self._job,
+                "voxel_mm": self.voxel_mm,
+                "voxels": [list(v) for v in self.model],
+            }
+            # Write beside the target then move, so an interrupted write
+            # cannot leave a truncated file behind.
+            temporary = path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(payload))
+            temporary.replace(path)
+        except OSError:
+            pass
 
     def toggle_model(self) -> bool:
         self.show_model = not self.show_model
@@ -141,6 +298,9 @@ class PositionPanel(Vertical):
 
     def clear_model(self) -> None:
         self.model.clear()
+        self._model_cache_key = None
+        self._model_dirty = True
+        self._persist_model()
         self._redraw()
 
     def rotate(self, dyaw: float = 0.0, dtilt: float = 0.0) -> None:
@@ -248,12 +408,7 @@ class PositionPanel(Vertical):
         # Deposited material, drawn under the toolhead so the marker stays on
         # top. Height shades the points so layers read apart.
         if self.show_model and self.model:
-            step = self.voxel_mm
-            for vx, vy, vz in self.model:
-                mu = self._norm(vx * step, lo[0], hi[0])
-                mv = self._norm(vy * step, lo[1], hi[1])
-                mw = self._norm(vz * step, lo[2], hi[2])
-                canvas.set(*self._project(mu, mv, mw, fit), C_MODEL)
+            self._draw_model(canvas, fit)
 
         u, v, w = (self._norm(self.pos[i], lo[i], hi[i]) for i in range(3))
 

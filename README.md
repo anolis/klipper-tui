@@ -161,6 +161,16 @@ advanced, so travel moves and retractions leave nothing behind. Points are
 snapped to a 2mm grid and capped, which keeps a long print bounded; the model
 resets when a different job starts, and Clear empties it by hand.
 
+Material is shaded rather than drawn in one colour: brightness combines
+distance from the viewer with height, which stands in for a light above and in
+front, and only the nearest point per pixel is kept so nearer material hides
+what is behind it. Without that the model is a flat blob with no readable
+depth.
+
+The model is saved as you go and restored when you reopen, so closing
+klipper-tui mid-print does not lose what has been drawn. It is keyed to the
+job, so a different print starts clean. Clear empties it by hand.
+
 It is a coarse picture, not a gcode preview — the sample rate is whatever
 Moonraker pushes, so fine detail is lost. It is enough to watch a part take
 shape.
