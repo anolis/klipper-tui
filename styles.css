@@ -1135,10 +1135,47 @@ kbd {
   border-color: var(--primary);
 }
 
+/* The cross and the Z column sit side by side, as they do in the app. */
+.jog-cluster {
+  display: flex;
+  align-items: stretch;
+  gap: 0.75rem;
+  margin: 0.75rem 0;
+}
+
 .jog-matrix {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 0.35rem;
+  flex: 1 1 auto;
+  max-width: 260px;
+}
+
+.z-jog-col {
+  display: grid;
+  grid-template-rows: 1fr auto 1fr;
+  gap: 0.35rem;
+  width: 84px;
+}
+
+.z-jog-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+/* The middle of the cross reads as a readout, not another jog button. */
+.jog-center {
+  background-color: var(--bg-surface);
+  border-color: var(--border-subtle);
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+
+.accent-text {
+  color: var(--accent);
 }
 
 .jog-arrow, .jog-center {
@@ -2017,5 +2054,67 @@ kbd {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.5rem;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Screenshots — real captures, not mockups
+   -------------------------------------------------------------------------- */
+.shots-section {
+  padding: 96px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.shots-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 28px;
+  margin-top: 48px;
+}
+
+.shot-card {
+  margin: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: border-color var(--transition-normal),
+              transform var(--transition-normal);
+}
+
+.shot-card:hover {
+  border-color: var(--border-active);
+  transform: translateY(-2px);
+}
+
+.shot-card img {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* The SVG carries its own terminal chrome and background. */
+  background: var(--bg-page);
+}
+
+.shot-card figcaption {
+  padding: 16px 20px 20px;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.shot-card figcaption strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .shots-grid {
+    grid-template-columns: 1fr;
+  }
+  .shots-section {
+    padding: 64px 0;
   }
 }

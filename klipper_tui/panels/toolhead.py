@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Grid, Horizontal, Vertical
 from textual.reactive import reactive
 from textual.widgets import Button, Label, Static
 
@@ -31,13 +31,26 @@ class ToolheadPanel(Vertical):
             yield Button("Home Y", id="th-home-y")
             yield Button("Home Z", id="th-home-z")
 
-        with Horizontal(classes="btn-row"):
-            yield Button("X-", id="th-x-neg")
-            yield Button("X+", id="th-x-pos")
-            yield Button("Y-", id="th-y-neg")
-            yield Button("Y+", id="th-y-pos")
-            yield Button("Z-", id="th-z-neg")
-            yield Button("Z+", id="th-z-pos")
+        # A cross, not a row. Six jog buttons in a line all look alike, and
+        # picking the wrong one moves the printer; laid out the way the axes
+        # actually point, the button is where the movement is.
+        with Horizontal(id="th-jog-cluster"):
+            with Grid(id="th-xy-pad"):
+                yield Static("")
+                yield Button("Y+", id="th-y-pos", classes="jog")
+                yield Static("")
+                yield Button("X-", id="th-x-neg", classes="jog")
+                # The middle of the cross would be dead space, so it cycles
+                # the step size and shows what that step currently is.
+                yield Button("1mm", id="th-step-cycle", classes="jog -step")
+                yield Button("X+", id="th-x-pos", classes="jog")
+                yield Static("")
+                yield Button("Y-", id="th-y-neg", classes="jog")
+                yield Static("")
+            with Vertical(id="th-z-pad"):
+                yield Button("Z+", id="th-z-pos", classes="jog")
+                yield Static("Z", id="th-z-pad-label")
+                yield Button("Z-", id="th-z-neg", classes="jog")
 
         with Horizontal(classes="step-row compact-row"):
             yield Static("", id="th-step-label")
@@ -64,8 +77,17 @@ class ToolheadPanel(Vertical):
             self.query_one("#th-step-label", Static).update(
                 f"[$text-muted]Step[/] [b $accent]{value:g}mm[/]  "
             )
+            self.query_one("#th-step-cycle", Button).label = f"{value:g}mm"
         except Exception:
             pass
+
+    def next_step(self) -> float:
+        """The next step size round the loop, for the middle of the cross."""
+        try:
+            index = STEP_SIZES.index(self.step)
+        except ValueError:
+            return STEP_SIZES[0]
+        return STEP_SIZES[(index + 1) % len(STEP_SIZES)]
 
     def update_status(self, status: dict) -> None:
         self._update_levelling(status)

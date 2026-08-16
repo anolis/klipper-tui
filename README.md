@@ -26,12 +26,14 @@ Every one of these is a real session against a real printer, captured mid-print.
 
 | | |
 |---|---|
-| <img src="docs/screenshots/toolpath.svg" alt="Toolpath viewer" width="100%"> | <img src="docs/screenshots/move.svg" alt="Toolhead position in 3D" width="100%"> |
-| **Toolpath** — the current layer as it is drawn, printed moves ahead of the nozzle in a different colour. | **Toolhead position** — the build volume and the model on the bed, rotatable. |
+| <img src="docs/screenshots/toolpath.svg" alt="Toolpath viewer" width="100%"> | <img src="docs/screenshots/move.svg" alt="Homing, jog cross and Z offset" width="100%"> |
+| **Toolpath** — the current layer as it is drawn, printed moves ahead of the nozzle in a different colour. | **Move** — homing, a jog cross, and live Z offset you can save into the probe. |
+| <img src="docs/screenshots/position.svg" alt="Toolhead position in 3D" width="100%"> | <img src="docs/screenshots/console.svg" alt="Gcode console" width="100%"> |
+| **Toolhead position** — the build volume and the loaded model on the bed, rotatable. | **Console** — gcode in, printer responses out, with Tab completion. |
 | <img src="docs/screenshots/mesh.svg" alt="Bed mesh heightmap" width="100%"> | <img src="docs/screenshots/graph.svg" alt="Temperature history" width="100%"> |
 | **Bed mesh** — the probed heightmap, and a button to reprobe it. | **Temperature history** — the last ten minutes, hotend and bed. |
-| <img src="docs/screenshots/files.svg" alt="File browser" width="100%"> | <img src="docs/screenshots/console.svg" alt="Gcode console" width="100%"> |
-| **Files** — sorted by date, double-click to print. | **Console** — gcode in, printer responses out, with tab completion. |
+| <img src="docs/screenshots/files.svg" alt="File browser" width="100%"> | |
+| **Files** — sorted by date, double-click to print. | |
 
 ## Install
 
@@ -327,6 +329,16 @@ fraction.
 Like any panel it can be turned off on the Settings tab, which keeps the
 restart controls.
 
+## Jogging
+
+X and Y are a cross rather than a row, laid out the way the axes point, so the
+button you want is where the movement is. Z is the column beside it. Six
+identical buttons in a line all look the same, and picking the wrong one moves
+the printer.
+
+The middle of the cross shows the current step size and cycles it — 0.1, 1, 10,
+50mm — and the row underneath sets it directly.
+
 ## Levelling
 
 A levelling button appears on the Toolhead panel only if your printer has
@@ -377,7 +389,23 @@ actually wants.
 100 suits direct drive; for a bowden tube use roughly its length plus the
 extruder path (1000 is typical).
 
+## The header
+
+The Klipper mark sits at the top left. On kitty and ghostty it is the real
+image through the graphics protocol, on a sixel terminal it is sixel, and
+anywhere else it falls back to half-blocks — which for a two-colour chevron
+still reads fine. Beside it are the host you are connected to and what Klippy
+currently thinks it is doing.
+
+The logo belongs to the Klipper project. klipper-tui is an independent client
+and is not affiliated with or endorsed by it, or by Mainsail.
+
 ## Bed mesh
+
+Controls and numbers stack down the left with the heightmap beside them. A
+heightmap is roughly square, so on its own row it would leave most of a wide
+panel empty.
+
 
 The probe count can be overridden per run from the Mesh tab — leave it blank
 to use the value from `printer.cfg`, or enter `10` or `10,15`. The estimated

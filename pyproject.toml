@@ -1,6 +1,6 @@
 [project]
 name = "klipper-tui"
-version = "0.12.0"
+version = "0.13.0"
 description = "A terminal UI for Klipper 3D printers, via Moonraker"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -52,4 +52,4 @@ build-backend = "setuptools.build_meta"
 include = ["klipper_tui*"]
 
 [tool.setuptools.package-data]
-klipper_tui = ["*.tcss"]
+klipper_tui = ["*.tcss", "assets/*.png"]

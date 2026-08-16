@@ -454,26 +454,31 @@ function init3DWireframe() {
     });
   }
 
-  // Jog interaction
-  let jogStep = 10;
+  // Jog interaction. The app starts at 1mm and shows the step in the middle
+  // of the cross, so the demo does the same.
+  let jogStep = 1;
   document.querySelectorAll('.step-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      jogStep = parseFloat(btn.dataset.step) || 10;
+      jogStep = parseFloat(btn.dataset.step) || 1;
+      const centre = document.getElementById('jogCenter');
+      if (centre) centre.textContent = `${jogStep}mm`;
+      const readout = document.querySelector('.jog-step-selector .accent-text');
+      if (readout) readout.textContent = `${jogStep}mm`;
     });
   });
 
   function updateCoordsUI() {
-    ['dashCoordX', 'wireCoordX'].forEach(id => {
+    ['wireCoordX'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.textContent = toolhead.x.toFixed(1);
     });
-    ['dashCoordY', 'wireCoordY'].forEach(id => {
+    ['wireCoordY'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.textContent = toolhead.y.toFixed(1);
     });
-    ['dashCoordZ', 'wireCoordZ'].forEach(id => {
+    ['wireCoordZ'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.textContent = toolhead.z.toFixed(1);
     });
@@ -494,7 +499,13 @@ function init3DWireframe() {
   if (jogYMinus) jogYMinus.addEventListener('click', () => { toolhead.y = Math.max(0, toolhead.y - jogStep); updateCoordsUI(); });
   if (jogZPlus) jogZPlus.addEventListener('click', () => { toolhead.z = Math.min(bounds.z, toolhead.z + jogStep); updateCoordsUI(); });
   if (jogZMinus) jogZMinus.addEventListener('click', () => { toolhead.z = Math.max(0, toolhead.z - jogStep); updateCoordsUI(); });
-  if (jogCenter) jogCenter.addEventListener('click', () => { toolhead.x = 150; toolhead.y = 150; toolhead.z = 50; updateCoordsUI(); });
+  // The middle of the cross cycles the step size, as it does in the app.
+  if (jogCenter) jogCenter.addEventListener('click', () => {
+    const steps = [0.1, 1, 10, 50];
+    const next = steps[(steps.indexOf(jogStep) + 1) % steps.length];
+    const target = document.querySelector(`.step-btn[data-step="${next}"]`);
+    if (target) target.click();
+  });
   if (jogHomeAll) jogHomeAll.addEventListener('click', () => { toolhead.x = 0; toolhead.y = 0; toolhead.z = 0; updateCoordsUI(); });
 }
 

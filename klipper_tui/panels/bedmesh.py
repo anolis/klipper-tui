@@ -54,21 +54,19 @@ class BedMeshPanel(Vertical):
     def compose(self) -> ComposeResult:
         yield Label("Bed Mesh", classes="panel-title")
 
-        with Horizontal(classes="btn-row"):
-            yield Button("Calibrate", id="bm-calibrate", classes="-primary")
-            yield Button("Load Profile", id="bm-load")
-            yield Button("Save Config", id="bm-save", classes="-success")
-            yield Button("Clear", id="bm-clear", classes="-danger")
-
-        with Horizontal(classes="btn-row"):
-            yield Input(placeholder="probe count, e.g. 10 or 10,15",
-                        id="bm-count")
-        # On its own line: sharing the row let it stretch the panel to fit
-        # whatever it happened to say.
-        yield Static("", id="bm-estimate", classes="dim")
-
-        yield Static("", id="bm-info", classes="dim")
-        yield Static("", id="heightmap")
+        # Controls and numbers stack down the left; the heightmap takes the
+        # rest. Across the top instead, the map is left with a column of
+        # unused width beside it on any terminal wide enough to bother.
+        with Horizontal(id="bm-body"):
+            with Vertical(id="bm-sidebar"):
+                yield Button("Calibrate", id="bm-calibrate", classes="-primary")
+                yield Button("Load Profile", id="bm-load")
+                yield Button("Save Config", id="bm-save", classes="-success")
+                yield Button("Clear", id="bm-clear", classes="-danger")
+                yield Input(placeholder="probe count", id="bm-count")
+                yield Static("", id="bm-estimate", classes="dim")
+                yield Static("", id="bm-info", classes="dim")
+            yield Static("", id="heightmap")
 
     def update_status(self, status: dict) -> None:
         cfg = (status.get("configfile") or {}).get("config") or {}
@@ -111,11 +109,12 @@ class BedMeshPanel(Vertical):
                 name = "default" if "default" in saved else next(iter(saved))
                 matrix = saved[name].get("points") or []
                 profile = f"{name} (saved)"
-                note = "   [$warning]not loaded — mesh is NOT active[/]"
+                note = "[$warning]not loaded — mesh\nis NOT active[/]"
 
         if not matrix or not any(matrix):
             self.query_one("#bm-info", Static).update(
-                "[$text-muted]No mesh loaded. Run Calibrate to probe the bed.[/]"
+                "[$text-muted]No mesh loaded.\nRun Calibrate to probe\n"
+                "the bed.[/]"
             )
             self.query_one("#heightmap", Static).update("")
             return
@@ -134,13 +133,13 @@ class BedMeshPanel(Vertical):
         lo, hi = min(flat), max(flat)
         rng = hi - lo
 
-        self.query_one("#bm-info", Static).update(
-            f"[$text-muted]Profile[/] [b]{profile}[/b]   "
-            f"[$text-muted]min[/] [b]{lo:+.3f}[/b]   "
-            f"[$text-muted]max[/] [b]{hi:+.3f}[/b]   "
-            f"[$text-muted]range[/] [b]{rng:.3f}mm[/b]   "
-            f"[$text-muted]{len(matrix[0])}x{len(matrix)} points[/]{note}"
-        )
+        self.query_one("#bm-info", Static).update(self._stats([
+            ("Profile", f"[b]{profile}[/b]"),
+            ("Min", f"[b]{lo:+.3f}[/b] mm"),
+            ("Max", f"[b]{hi:+.3f}[/b] mm"),
+            ("Range", f"[b]{rng:.3f}[/b] mm"),
+            ("Points", f"{len(matrix[0])} x {len(matrix)}"),
+        ], note))
         self.query_one("#heightmap", Static).update(
             self._render_heightmap(matrix, lo, hi)
         )
@@ -213,15 +212,14 @@ class BedMeshPanel(Vertical):
         lo = min(values) if values else 0.0
         hi = max(values) if values else 0.0
 
-        note = ("   [$text-muted]joined in progress; earlier points are "
-                "not shown[/]" if self.live_joined else "")
-        info.update(
-            f"[$accent]probing[/]   [$text-muted]point[/] [b]{done}[/b]"
-            f"[$text-muted]/{total}[/]   "
-            f"[$text-muted]min[/] [b]{lo:+.3f}[/b]   "
-            f"[$text-muted]max[/] [b]{hi:+.3f}[/b]   "
-            f"[$text-muted]range[/] [b]{hi - lo:.3f}mm[/]{note}"
-        )
+        note = ("[$text-muted]joined in progress; earlier\npoints are not "
+                "shown[/]" if self.live_joined else "")
+        info.update(self._stats([
+            ("Probing", f"[$accent b]{done}[/][$text-muted]/{total}[/]"),
+            ("Min", f"[b]{lo:+.3f}[/b] mm"),
+            ("Max", f"[b]{hi:+.3f}[/b] mm"),
+            ("Range", f"[b]{hi - lo:.3f}[/b] mm"),
+        ], note))
 
         rng = (hi - lo) or 1.0
         lines = []
@@ -308,6 +306,16 @@ class BedMeshPanel(Vertical):
             return "BED_MESH_CALIBRATE"
         return f"BED_MESH_CALIBRATE PROBE_COUNT={count[0]},{count[1]}"
 
+    @staticmethod
+    def _stats(rows: list[tuple[str, str]], note: str = "") -> str:
+        """A label/value column for the sidebar."""
+        width = max(len(label) for label, _ in rows)
+        lines = [f"[$text-muted]{label.ljust(width)}[/]  {value}"
+                 for label, value in rows]
+        if note:
+            lines.extend(("", note))
+        return "\n".join(lines)
+
     def _render_heightmap(self, matrix: list[list[float]], lo: float, hi: float) -> str:
         rng = hi - lo or 1.0
         lines = []
@@ -320,7 +328,6 @@ class BedMeshPanel(Vertical):
                 idx = int((z - lo) / rng * (len(GRADIENT) - 1))
                 idx = max(0, min(len(GRADIENT) - 1, idx))
                 cells.append(f"[{GRADIENT[idx]}]██[/]")
-            cells.append(f" [$text-muted]{max(row):+.3f}[/]")
             lines.append("".join(cells))
 
         legend = "".join(f"[{c}]█[/]" for c in GRADIENT)

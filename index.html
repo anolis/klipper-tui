@@ -35,11 +35,12 @@
       <a href="#" class="brand" id="brandLogo">
         <span class="brand-badge">TUI</span>
         <span class="brand-name">klipper<span class="brand-accent">-tui</span></span>
-        <span class="version-tag">v0.1.0</span>
+        <span class="version-tag">v0.12.0</span>
       </a>
 
       <nav class="nav-links" id="navLinks" aria-label="Main Navigation">
-        <a href="#demo" class="nav-item">Interactive Demo</a>
+        <a href="#screenshots" class="nav-item">Screenshots</a>
+        <a href="#demo" class="nav-item">Try It</a>
         <a href="#features" class="nav-item">Features</a>
         <a href="#architecture" class="nav-item">Architecture</a>
         <a href="#quickstart" class="nav-item">Quickstart</a>
@@ -96,14 +97,16 @@
       </h1>
 
       <p class="hero-subhead">
-        Monitor prints, jog in 3D wireframe, inspect color-coded bed meshes, stream webcams, and send G-code over Moonraker WebSocket—without ever opening a browser.
+        Run a print, jog the toolhead, watch temperatures, adjust Z offset live, probe the bed,
+        follow the current layer's toolpath and check the camera — over Moonraker, in the
+        terminal, without opening a browser.
       </p>
 
       <!-- Quick Install Box -->
       <div class="hero-install-container">
         <div class="install-tabs">
           <button type="button" class="install-tab-btn active" data-cmd="pipx install klipper-tui">pipx (recommended)</button>
-          <button type="button" class="install-tab-btn" data-cmd="pip install klipper-tui[webcam]">pip + webcam</button>
+          <button type="button" class="install-tab-btn" data-cmd="pip install klipper-tui">pip</button>
           <button type="button" class="install-tab-btn" data-cmd="git clone https://github.com/anolis/klipper-tui &amp;&amp; cd klipper-tui &amp;&amp; pip install -e .">source</button>
         </div>
         <div class="install-command-bar">
@@ -119,24 +122,72 @@
       <!-- Hero Metrics -->
       <div class="hero-stats-row">
         <div class="stat-item">
-          <span class="stat-value">&lt; 15ms</span>
-          <span class="stat-label">WebSocket Latency</span>
+          <span class="stat-value">8</span>
+          <span class="stat-label">Tabs</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
-          <span class="stat-value">0 MB</span>
-          <span class="stat-label">Browser RAM Overhead</span>
+          <span class="stat-value">16</span>
+          <span class="stat-label">Dashboard panels</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
-          <span class="stat-value">8 Tabs</span>
-          <span class="stat-label">Full Control Surface</span>
+          <span class="stat-value">11</span>
+          <span class="stat-label">Themes</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
           <span class="stat-value">GPL-3.0</span>
-          <span class="stat-label">100% Free &amp; Open Source</span>
+          <span class="stat-label">Free &amp; open source</span>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Real Screenshots -->
+  <section class="shots-section" id="screenshots">
+    <div class="container">
+      <div class="section-header text-center">
+        <span class="section-tag">The Actual Thing</span>
+        <h2 class="section-title">What it looks like</h2>
+        <p class="section-desc">
+          Every one of these was captured from a real session against a real printer,
+          mid-print. Nothing here is a mockup.
+        </p>
+      </div>
+      <div class="shots-grid">
+        <figure class="shot-card">
+          <img src="docs/screenshots/dashboard.svg" alt="Dashboard" loading="lazy">
+          <figcaption><strong>Dashboard</strong> Status, temperatures, history and speed and flow, packed to the width of the terminal.</figcaption>
+        </figure>
+        <figure class="shot-card">
+          <img src="docs/screenshots/toolpath.svg" alt="Toolpath" loading="lazy">
+          <figcaption><strong>Toolpath</strong> The current layer as it is drawn — printed moves ahead of the nozzle in a different colour.</figcaption>
+        </figure>
+        <figure class="shot-card">
+          <img src="docs/screenshots/mesh.svg" alt="Bed mesh" loading="lazy">
+          <figcaption><strong>Bed mesh</strong> The probed heightmap beside its controls, filling in point by point while probing.</figcaption>
+        </figure>
+        <figure class="shot-card">
+          <img src="docs/screenshots/move.svg" alt="Move" loading="lazy">
+          <figcaption><strong>Move</strong> Homing, a jog cross, and live Z offset you can save into the probe.</figcaption>
+        </figure>
+        <figure class="shot-card">
+          <img src="docs/screenshots/position.svg" alt="Toolhead position" loading="lazy">
+          <figcaption><strong>Toolhead position</strong> The build volume and the loaded model on the bed, rotatable.</figcaption>
+        </figure>
+        <figure class="shot-card">
+          <img src="docs/screenshots/graph.svg" alt="Temperature history" loading="lazy">
+          <figcaption><strong>Temperature history</strong> Hotend and bed in braille, at four times the vertical resolution of block characters. Flat, because the print is holding temperature — which is the point.</figcaption>
+        </figure>
+        <figure class="shot-card">
+          <img src="docs/screenshots/files.svg" alt="Files" loading="lazy">
+          <figcaption><strong>Files</strong> Sorted newest first, with slicer metadata. Double-click a row to print it.</figcaption>
+        </figure>
+        <figure class="shot-card">
+          <img src="docs/screenshots/console.svg" alt="Console" loading="lazy">
+          <figcaption><strong>Console</strong> Real commands, real replies, and Tab completing <code>BED_MESH_</code> against what the printer reports.</figcaption>
+        </figure>
       </div>
     </div>
   </section>
@@ -145,10 +196,13 @@
   <section class="demo-section" id="demo">
     <div class="container">
       <div class="section-header text-center">
-        <span class="section-tag">Hands-On Experience</span>
-        <h2 class="section-title">Live Interactive TUI Simulator</h2>
+        <span class="section-tag">Try It</span>
+        <h2 class="section-title">A simulator, in your browser</h2>
         <p class="section-desc">
-          Click tabs or press single-letter hotkeys (<kbd>d</kbd>, <kbd>c</kbd>, <kbd>m</kbd>, <kbd>f</kbd>, <kbd>b</kbd>, <kbd>w</kbd>, <kbd>g</kbd>, <kbd>s</kbd>) to navigate. Type real G-code in the console tab!
+          The same tabs and the same keys (<kbd>d</kbd>, <kbd>g</kbd>, <kbd>c</kbd>, <kbd>m</kbd>,
+          <kbd>f</kbd>, <kbd>b</kbd>, <kbd>w</kbd>, <kbd>s</kbd>), wired to made-up printer data so
+          you can click around before installing anything. The
+          <a href="#screenshots">screenshots above</a> are the real thing.
         </p>
       </div>
 
@@ -162,12 +216,12 @@
             <span class="ctrl-dot dot-max"></span>
           </div>
           <div class="terminal-session-info">
-            <span class="session-printer-badge">voron-2.4</span>
+            <span class="session-printer-badge">simulated</span>
             <span class="session-host">mainsailos.local:7125</span>
-            <span class="session-status state-printing">PRINTING (68%)</span>
+            <span class="session-status state-printing">PRINTING 68%</span>
           </div>
           <div class="terminal-meta">
-            <span class="fps-badge">60 FPS</span>
+            <span class="fps-badge">klippy ready</span>
           </div>
         </div>
 
@@ -176,23 +230,23 @@
           <button type="button" class="tui-tab active" data-tab="dashboard" role="tab" aria-selected="true" id="tabBtnDashboard">
             <span class="key-hint">d</span> Dashboard
           </button>
+          <button type="button" class="tui-tab" data-tab="graph" role="tab" aria-selected="false" id="tabBtnGraph">
+            <span class="key-hint">g</span> Graph
+          </button>
           <button type="button" class="tui-tab" data-tab="console" role="tab" aria-selected="false" id="tabBtnConsole">
             <span class="key-hint">c</span> Console
           </button>
           <button type="button" class="tui-tab" data-tab="move" role="tab" aria-selected="false" id="tabBtnMove">
-            <span class="key-hint">m</span> Move 3D
+            <span class="key-hint">m</span> Move
           </button>
           <button type="button" class="tui-tab" data-tab="files" role="tab" aria-selected="false" id="tabBtnFiles">
             <span class="key-hint">f</span> Files
           </button>
           <button type="button" class="tui-tab" data-tab="mesh" role="tab" aria-selected="false" id="tabBtnMesh">
-            <span class="key-hint">b</span> Bed Mesh
+            <span class="key-hint">b</span> Mesh
           </button>
           <button type="button" class="tui-tab" data-tab="webcam" role="tab" aria-selected="false" id="tabBtnWebcam">
             <span class="key-hint">w</span> Webcam
-          </button>
-          <button type="button" class="tui-tab" data-tab="graph" role="tab" aria-selected="false" id="tabBtnGraph">
-            <span class="key-hint">g</span> Graph
           </button>
           <button type="button" class="tui-tab" data-tab="settings" role="tab" aria-selected="false" id="tabBtnSettings">
             <span class="key-hint">s</span> Settings
@@ -209,26 +263,26 @@
               <!-- State & Progress Panel -->
               <div class="tui-card">
                 <div class="card-header">
-                  <span class="card-title">Job Status</span>
+                  <span class="card-title">Status</span>
                   <span class="badge-success">PRINTING</span>
                 </div>
                 <div class="card-body">
                   <div class="job-meta-row">
-                    <span class="dim">File:</span>
-                    <span class="highlight bold">benchy_highspeed_pla.gcode</span>
+                    <span class="dim">File</span>
+                    <span class="highlight bold">ice_dragon_6h28m_0.20mm_215C_PLA.gcode</span>
                   </div>
                   <div class="progress-bar-container">
                     <div class="progress-bar-fill" style="width: 68%;"></div>
                   </div>
                   <div class="progress-stats-row">
-                    <span>Progress: <strong>68%</strong> (Layer 204/300)</span>
-                    <span>ETA: <strong>12m 45s</strong></span>
+                    <span><strong>68%</strong></span>
+                    <span>ETA <strong>07:41</strong> (02:04 left)</span>
                   </div>
                   <div class="stats-mini-grid">
-                    <div><span class="dim">Elapsed:</span> 00:27:15</div>
-                    <div><span class="dim">Speed:</span> 250 mm/s (100%)</div>
-                    <div><span class="dim">Flow:</span> 18.5 mm³/s (100%)</div>
-                    <div><span class="dim">Fan:</span> 100% (255)</div>
+                    <div><span class="dim">Elapsed</span> 04:24:15</div>
+                    <div><span class="dim">Pos</span> X 168.7 Y 162.0 Z 42.4</div>
+                    <div><span class="dim">Homed</span> X Y Z</div>
+                    <div><span class="dim">Speed</span> 150% &nbsp; <span class="dim">Flow</span> 100%</div>
                   </div>
                 </div>
               </div>
@@ -236,20 +290,21 @@
               <!-- Toolhead Coordinates -->
               <div class="tui-card">
                 <div class="card-header">
-                  <span class="card-title">Toolhead Position</span>
-                  <span class="dim">Homed: XYZ</span>
+                  <span class="card-title">Motion limits</span>
+                  <span class="dim">from printer.cfg</span>
                 </div>
                 <div class="card-body">
                   <div class="coord-display-grid">
-                    <div class="coord-cell"><span class="axis">X</span> <span class="coord-val" id="dashCoordX">174.25</span> mm</div>
-                    <div class="coord-cell"><span class="axis">Y</span> <span class="coord-val" id="dashCoordY">148.80</span> mm</div>
-                    <div class="coord-cell"><span class="axis">Z</span> <span class="coord-val" id="dashCoordZ">40.80</span> mm</div>
-                    <div class="coord-cell"><span class="axis">E</span> <span class="coord-val" id="dashCoordE">1248.60</span> mm</div>
+                    <div class="coord-cell"><span class="axis">Velocity</span> <span class="coord-val">500</span> mm/s</div>
+                    <div class="coord-cell"><span class="axis">Accel</span> <span class="coord-val">2000</span> mm/s²</div>
+                    <div class="coord-cell"><span class="axis">SCV</span> <span class="coord-val">5.0</span> mm/s</div>
+                    <div class="coord-cell"><span class="axis">Cruise</span> <span class="coord-val">50</span> %</div>
                   </div>
                   <div class="quick-jog-row">
-                    <button type="button" class="tui-btn tui-btn-sm" id="btnDashHomeAll">G28 (Home)</button>
                     <button type="button" class="tui-btn tui-btn-sm" id="btnDashPause">Pause</button>
-                    <button type="button" class="tui-btn tui-btn-sm tui-btn-danger" id="btnDashEmergency">E-STOP</button>
+                    <button type="button" class="tui-btn tui-btn-sm" disabled>Resume</button>
+                    <button type="button" class="tui-btn tui-btn-sm tui-btn-danger" id="btnDashEmergency">Cancel</button>
+                    <button type="button" class="tui-btn tui-btn-sm tui-btn-danger">Restart</button>
                   </div>
                 </div>
               </div>
@@ -257,19 +312,19 @@
               <!-- Temperature Sensors -->
               <div class="tui-card">
                 <div class="card-header">
-                  <span class="card-title">Temperatures</span>
-                  <span class="badge-success">Target Reached</span>
+                  <span class="card-title">Temperature</span>
+                  <span class="badge-success">at target</span>
                 </div>
                 <div class="card-body">
                   <div class="temp-readout-row">
                     <div class="temp-item">
-                      <span class="temp-name"><span class="dot-hot"></span> Extruder</span>
-                      <span class="temp-nums"><strong id="dashExtruderTemp">215.0</strong>°C / 215°C</span>
+                      <span class="temp-name"><span class="dot-hot"></span> Hotend</span>
+                      <span class="temp-nums"><strong id="dashExtruderTemp">215.0</strong>°C / 215°C &nbsp;<span class="dim">power 56%</span></span>
                       <div class="temp-bar"><div class="temp-bar-fill hot-fill" style="width: 71%;"></div></div>
                     </div>
                     <div class="temp-item">
-                      <span class="temp-name"><span class="dot-bed"></span> Heated Bed</span>
-                      <span class="temp-nums"><strong id="dashBedTemp">60.2</strong>°C / 60°C</span>
+                      <span class="temp-name"><span class="dot-bed"></span> Bed</span>
+                      <span class="temp-nums"><strong id="dashBedTemp">65.0</strong>°C / 65°C &nbsp;<span class="dim">power 4%</span></span>
                       <div class="temp-bar"><div class="temp-bar-fill bed-fill" style="width: 50%;"></div></div>
                     </div>
                   </div>
@@ -279,15 +334,15 @@
               <!-- Material Presets -->
               <div class="tui-card">
                 <div class="card-header">
-                  <span class="card-title">Material Presets</span>
-                  <span class="dim">1-Click Set</span>
+                  <span class="card-title">Presets</span>
+                  <span class="dim">editable in Settings</span>
                 </div>
                 <div class="card-body">
                   <div class="presets-btn-grid">
-                    <button type="button" class="tui-btn active-preset" id="presetPla">PLA <small>215 / 60</small></button>
+                    <button type="button" class="tui-btn active-preset" id="presetPla">PLA <small>200 / 60</small></button>
                     <button type="button" class="tui-btn" id="presetPetg">PETG <small>240 / 80</small></button>
-                    <button type="button" class="tui-btn" id="presetAbs">ABS <small>255 / 100</small></button>
-                    <button type="button" class="tui-btn" id="presetCooldown">Cooldown <small>0 / 0</small></button>
+                    <button type="button" class="tui-btn" id="presetAbs">ABS <small>240 / 100</small></button>
+                    <button type="button" class="tui-btn" id="presetCooldown">Cool <small>off</small></button>
                   </div>
                 </div>
               </div>
@@ -299,17 +354,17 @@
           <div class="tui-view-panel" id="viewConsole">
             <div class="console-wrapper">
               <div class="console-output" id="consoleOutput" role="log" aria-live="polite">
-                <div class="log-line log-system">Connecting to ws://mainsailos.local:7125/websocket...</div>
-                <div class="log-line log-success">Connected to Moonraker v0.8.0. Klippy state: Ready.</div>
+                <div class="log-line log-system">Connecting to ws://mainsailos.local:7125/websocket…</div>
+                <div class="log-line log-success">Connected. klippy ready.</div>
                 <div class="log-line log-cmd">&gt; M105</div>
-                <div class="log-line log-response">ok B:60.2 /60.0 T0:215.0 /215.0</div>
-                <div class="log-line log-cmd">&gt; GET_POSITION</div>
-                <div class="log-line log-response">// toolhead: X:174.250 Y:148.800 Z:40.800 E:1248.600</div>
-                <div class="log-line log-dim">// Try typing: 'G28', 'M105', 'M104 S220', 'STATUS', 'HELP', or 'CLEAR' below.</div>
+                <div class="log-line log-response">ok B:65.0 /65.0 T0:215.0 /215.0</div>
+                <div class="log-line log-cmd">&gt; BED_<em>Tab</em></div>
+                <div class="log-line log-dim">BED_MESH_CALIBRATE  BED_MESH_CLEAR  BED_MESH_MAP  BED_MESH_OFFSET  BED_MESH_OUTPUT  BED_MESH_PROFILE</div>
+                <div class="log-line log-dim">// Try G28, M105, M104 S220, STATUS, HELP or CLEAR.</div>
               </div>
               <form class="console-input-bar" id="consoleForm">
                 <span class="console-prompt">&gt;</span>
-                <input type="text" class="console-input" id="consoleInput" placeholder="Send G-code / Moonraker command (e.g. M105, G28, STATUS)..." autocomplete="off" spellcheck="false">
+                <input type="text" class="console-input" id="consoleInput" placeholder="Send gcode…  (Tab completes, ↑/↓ history)" autocomplete="off" spellcheck="false">
                 <button type="submit" class="tui-btn tui-btn-primary">Send</button>
               </form>
             </div>
@@ -320,53 +375,68 @@
             <div class="move-layout-grid">
               <!-- Jog Controls -->
               <div class="jog-panel">
-                <div class="card-title">Homing &amp; Jogging</div>
+                <div class="card-title">Toolhead</div>
                 <div class="home-buttons-row">
-                  <button type="button" class="tui-btn tui-btn-primary" id="jogHomeAll">Home All (G28)</button>
-                  <button type="button" class="tui-btn" id="jogHomeXY">Home XY</button>
+                  <button type="button" class="tui-btn tui-btn-primary" id="jogHomeAll">Home All</button>
+                  <button type="button" class="tui-btn" id="jogHomeXY">Home X</button>
+                  <button type="button" class="tui-btn">Home Y</button>
                   <button type="button" class="tui-btn" id="jogHomeZ">Home Z</button>
                 </div>
 
+                <div class="jog-cluster">
+                  <div class="jog-matrix">
+                    <div></div>
+                    <button type="button" class="tui-btn jog-arrow" id="jogYPlus">Y+</button>
+                    <div></div>
+                    <button type="button" class="tui-btn jog-arrow" id="jogXMinus">X-</button>
+                    <button type="button" class="tui-btn jog-center" id="jogCenter">1mm</button>
+                    <button type="button" class="tui-btn jog-arrow" id="jogXPlus">X+</button>
+                    <div></div>
+                    <button type="button" class="tui-btn jog-arrow" id="jogYMinus">Y-</button>
+                    <div></div>
+                  </div>
+                  <div class="z-jog-col">
+                    <button type="button" class="tui-btn jog-arrow" id="jogZPlus">Z+</button>
+                    <span class="dim z-jog-label">Z</span>
+                    <button type="button" class="tui-btn jog-arrow" id="jogZMinus">Z-</button>
+                  </div>
+                </div>
+
                 <div class="jog-step-selector">
-                  <span class="dim">Step:</span>
-                  <button type="button" class="step-btn" data-step="0.1">0.1</button>
-                  <button type="button" class="step-btn" data-step="1">1</button>
-                  <button type="button" class="step-btn active" data-step="10">10</button>
-                  <button type="button" class="step-btn" data-step="50">50</button>
-                  <button type="button" class="step-btn" data-step="100">100mm</button>
+                  <span class="dim">Step <strong class="accent-text">1mm</strong></span>
+                  <button type="button" class="step-btn" data-step="0.1">0.1mm</button>
+                  <button type="button" class="step-btn active" data-step="1">1mm</button>
+                  <button type="button" class="step-btn" data-step="10">10mm</button>
+                  <button type="button" class="step-btn" data-step="50">50mm</button>
                 </div>
 
-                <div class="jog-matrix">
-                  <div></div>
-                  <button type="button" class="tui-btn jog-arrow" id="jogYPlus">+Y</button>
-                  <div></div>
-                  <button type="button" class="tui-btn jog-arrow" id="jogXMinus">-X</button>
-                  <button type="button" class="tui-btn jog-center" id="jogCenter">Center</button>
-                  <button type="button" class="tui-btn jog-arrow" id="jogXPlus">+X</button>
-                  <div></div>
-                  <button type="button" class="tui-btn jog-arrow" id="jogYMinus">-Y</button>
-                  <div></div>
+                <div class="home-buttons-row">
+                  <button type="button" class="tui-btn tui-btn-danger">Motors Off</button>
                 </div>
 
-                <div class="z-jog-row">
-                  <button type="button" class="tui-btn" id="jogZPlus">+Z Up</button>
-                  <button type="button" class="tui-btn" id="jogZMinus">-Z Down</button>
+                <div class="card-title" style="margin-top:18px;">Z offset</div>
+                <p class="dim font-sm">live offset <strong>+0.000</strong>mm &nbsp; probe z_offset 0.850</p>
+                <div class="home-buttons-row">
+                  <button type="button" class="tui-btn">-0.05</button>
+                  <button type="button" class="tui-btn">-0.01</button>
+                  <button type="button" class="tui-btn">+0.01</button>
+                  <button type="button" class="tui-btn">+0.05</button>
                 </div>
               </div>
 
               <!-- 3D Wireframe Canvas Projection -->
               <div class="wireframe-3d-panel">
                 <div class="wireframe-controls-bar">
-                  <span class="card-title">3D Build Volume Visualizer</span>
+                  <span class="card-title">Toolhead Position</span>
                   <div class="wireframe-actions">
-                    <button type="button" class="tui-btn tui-btn-sm" id="btnSpinToggle">Auto-Spin: ON</button>
-                    <button type="button" class="tui-btn tui-btn-sm" id="btnReset3D">Reset View</button>
+                    <button type="button" class="tui-btn tui-btn-sm" id="btnSpinToggle">Spin: on</button>
+                    <button type="button" class="tui-btn tui-btn-sm" id="btnReset3D">Reset</button>
                   </div>
                 </div>
                 <div class="wireframe-canvas-container">
                   <canvas id="wireframeCanvas" width="500" height="280"></canvas>
                   <div class="wireframe-overlay-coords">
-                    X: <span id="wireCoordX">174.2</span> mm | Y: <span id="wireCoordY">148.8</span> mm | Z: <span id="wireCoordZ">40.8</span> mm
+                    X <span id="wireCoordX">168.7</span> &nbsp; Y <span id="wireCoordY">162.0</span> &nbsp; Z <span id="wireCoordZ">42.4</span> &nbsp;<span class="dim">mm</span>
                   </div>
                 </div>
               </div>
@@ -377,8 +447,8 @@
           <div class="tui-view-panel" id="viewFiles">
             <div class="files-panel-wrapper">
               <div class="files-header-bar">
-                <span class="card-title">G-Code Files (/gcodes)</span>
-                <span class="dim">3 files loaded (Free: 24.8 GB)</span>
+                <span class="card-title">G-code Files</span>
+                <span class="dim">newest first &middot; double-click a row to print it</span>
               </div>
               <div class="files-table-wrapper">
                 <table class="tui-table">
@@ -386,32 +456,24 @@
                     <tr>
                       <th>Filename</th>
                       <th>Size</th>
-                      <th>Est. Time</th>
-                      <th>Layer Height</th>
-                      <th>Action</th>
+                      <th>Modified</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr class="active-print-row">
-                      <td><span class="file-icon">📄</span> <strong>benchy_highspeed_pla.gcode</strong> <span class="badge-mini-active">Active</span></td>
-                      <td>4.2 MB</td>
-                      <td>00:39:45</td>
-                      <td>0.20 mm</td>
-                      <td><button type="button" class="tui-btn tui-btn-sm tui-btn-danger">Pause</button></td>
+                      <td><strong>ARTICULATED_ice_dragon_fixed_p1_6h28m_0.20mm_215C_PLA_ENDER6.gcode</strong> <span class="badge-mini-active">printing</span></td>
+                      <td>27.2 MB</td>
+                      <td>2026-08-16 03:55</td>
                     </tr>
                     <tr>
-                      <td><span class="file-icon">📄</span> voron_stealthburner_mainbody_abs.gcode</td>
-                      <td>14.8 MB</td>
-                      <td>03:14:10</td>
-                      <td>0.20 mm</td>
-                      <td><button type="button" class="tui-btn tui-btn-sm">Print</button></td>
-                    </tr>
-                    <tr>
-                      <td><span class="file-icon">📄</span> cable_chain_links_petg.gcode</td>
+                      <td>ender6_cooling_duct_v3_petg.gcode</td>
                       <td>8.6 MB</td>
-                      <td>01:45:20</td>
-                      <td>0.16 mm</td>
-                      <td><button type="button" class="tui-btn tui-btn-sm">Print</button></td>
+                      <td>2026-08-14 21:08</td>
+                    </tr>
+                    <tr>
+                      <td>bed_level_test_pla.gcode</td>
+                      <td>1.4 MB</td>
+                      <td>2026-08-12 19:44</td>
                     </tr>
                   </tbody>
                 </table>
@@ -423,41 +485,48 @@
           <div class="tui-view-panel" id="viewMesh">
             <div class="mesh-panel-layout">
               <div class="mesh-sidebar">
-                <div class="card-title">Bed Mesh Calibration</div>
-                <p class="dim font-sm">Calculated from 5x5 inductive/load-cell probe points.</p>
+                <div class="card-title">Bed Mesh</div>
+                <div class="mesh-actions-col">
+                  <button type="button" class="tui-btn tui-btn-primary" id="btnCalibrateMesh">Calibrate</button>
+                  <button type="button" class="tui-btn">Load Profile</button>
+                  <button type="button" class="tui-btn" id="btnSaveConfigMesh">Save Config</button>
+                  <button type="button" class="tui-btn tui-btn-danger" id="btnClearMesh">Clear</button>
+                </div>
+                <p class="dim font-sm" style="margin-top:14px;">
+                  <code>10,10</code><br>10×10 = 100 points, roughly 3 min
+                </p>
                 <div class="mesh-stats-block">
                   <div class="mesh-stat-item">
-                    <span class="dim">Min Z:</span>
-                    <strong class="text-blue">-0.042 mm</strong>
-                  </div>
-                  <div class="mesh-stat-item">
-                    <span class="dim">Max Z:</span>
-                    <strong class="text-orange">+0.058 mm</strong>
-                  </div>
-                  <div class="mesh-stat-item">
-                    <span class="dim">Range (Variance):</span>
-                    <strong class="text-green">0.100 mm</strong>
-                  </div>
-                  <div class="mesh-stat-item">
-                    <span class="dim">Profile:</span>
+                    <span class="dim">Profile</span>
                     <strong>default</strong>
                   </div>
-                </div>
-                <div class="mesh-actions-col">
-                  <button type="button" class="tui-btn tui-btn-primary" id="btnCalibrateMesh">Calibrate Mesh</button>
-                  <button type="button" class="tui-btn" id="btnSaveConfigMesh">SAVE_CONFIG</button>
-                  <button type="button" class="tui-btn tui-btn-danger" id="btnClearMesh">Clear Mesh</button>
+                  <div class="mesh-stat-item">
+                    <span class="dim">Min</span>
+                    <strong class="text-blue">-0.040 mm</strong>
+                  </div>
+                  <div class="mesh-stat-item">
+                    <span class="dim">Max</span>
+                    <strong class="text-orange">+0.163 mm</strong>
+                  </div>
+                  <div class="mesh-stat-item">
+                    <span class="dim">Range</span>
+                    <strong class="text-green">0.203 mm</strong>
+                  </div>
+                  <div class="mesh-stat-item">
+                    <span class="dim">Points</span>
+                    <strong>20 x 20</strong>
+                  </div>
                 </div>
               </div>
 
               <!-- Color-coded Bed Mesh Heightmap Grid -->
               <div class="mesh-heightmap-container">
                 <div class="mesh-grid-header">
-                  <span>Bed Heightmap (Variance Color-Coded)</span>
+                  <span>Heightmap</span>
                   <div class="gradient-scale-bar">
-                    <span>-0.05mm</span>
+                    <span>-0.040</span>
                     <div class="scale-gradient"></div>
-                    <span>+0.05mm</span>
+                    <span>+0.163</span>
                   </div>
                 </div>
                 <div class="heightmap-grid" id="heightmapGrid">
@@ -472,20 +541,20 @@
             <div class="webcam-container">
               <div class="webcam-header-bar">
                 <div class="webcam-title-group">
-                  <span class="card-title">Live MJPEG Stream</span>
-                  <span class="live-rec-badge"><span class="rec-dot"></span> LIVE (30 FPS)</span>
+                  <span class="card-title">Webcam</span>
+                  <span class="live-rec-badge"><span class="rec-dot"></span> LIVE</span>
                 </div>
                 <div class="webcam-controls">
                   <button type="button" class="tui-btn tui-btn-sm" id="btnPauseWebcam">Pause</button>
-                  <button type="button" class="tui-btn tui-btn-sm" id="btnWebcamMode">Mode: Braille Half-Block</button>
+                  <button type="button" class="tui-btn tui-btn-sm" id="btnWebcamMode">Renderer: kitty graphics</button>
                 </div>
               </div>
               <div class="webcam-canvas-area" id="webcamViewArea">
                 <!-- Live canvas stream simulation -->
                 <canvas id="webcamSimCanvas" width="560" height="260"></canvas>
                 <div class="webcam-hud">
-                  <span>CAM: Bed Nozzle Top | RES: 1920x1080 | FORMAT: MJPEG</span>
-                  <span>ZOOM: 1.0x</span>
+                  <span>http://mainsailos.local/webcam/?action=snapshot &nbsp;·&nbsp; 1280x720 JPEG</span>
+                  <span>10 fps</span>
                 </div>
               </div>
             </div>
@@ -496,10 +565,10 @@
             <div class="graph-panel-wrapper">
               <div class="graph-header-bar">
                 <div class="graph-legend">
-                  <span class="legend-item"><span class="swatch-hot"></span> Extruder: <strong id="graphExtruderVal">215.0°C</strong> (Target: 215°C)</span>
-                  <span class="legend-item"><span class="swatch-bed"></span> Bed: <strong id="graphBedVal">60.2°C</strong> (Target: 60°C)</span>
+                  <span class="legend-item"><span class="swatch-hot"></span> Hotend <strong id="graphExtruderVal">215.0°C</strong> / 215</span>
+                  <span class="legend-item"><span class="swatch-bed"></span> Bed <strong id="graphBedVal">65.0°C</strong> / 65</span>
                 </div>
-                <span class="dim font-sm">Sub-pixel UTF-8 Braille Canvas (2x4 dots per cell)</span>
+                <span class="dim font-sm">last 10m &nbsp;·&nbsp; braille, 2×4 dots per cell</span>
               </div>
               <div class="braille-graph-viewport">
                 <pre class="braille-text-canvas" id="brailleTextCanvas">Loading braille temperature series...</pre>
@@ -511,39 +580,47 @@
           <div class="tui-view-panel" id="viewSettings">
             <div class="settings-panel-grid">
               <div class="settings-card">
-                <div class="card-title">Appearance &amp; Theme</div>
+                <div class="card-title">Appearance</div>
                 <div class="setting-row">
-                  <label id="themeRadioLabel">Active Color Theme:</label>
+                  <label id="themeRadioLabel">Theme — eleven of them; these three are the demo's</label>
                   <div class="theme-radios" role="radiogroup" aria-labelledby="themeRadioLabel">
                     <label class="radio-label">
                       <input type="radio" name="appTheme" value="ominous" checked>
-                      <span>Ominous (Dark Burgundy)</span>
+                      <span>Ominous <span class="dim">(default)</span></span>
                     </label>
                     <label class="radio-label">
                       <input type="radio" name="appTheme" value="mainsail">
-                      <span>Mainsail (Deep Blue)</span>
+                      <span>Mainsail</span>
                     </label>
                     <label class="radio-label">
                       <input type="radio" name="appTheme" value="forge">
-                      <span>Forge (Warm Amber)</span>
+                      <span>Forge</span>
                     </label>
                   </div>
                 </div>
               </div>
 
               <div class="settings-card">
-                <div class="card-title">Moonraker Connection</div>
+                <div class="card-title">Settings</div>
                 <div class="setting-row">
-                  <span class="dim">Host:</span>
-                  <code>mainsailos.local</code>
+                  <span class="dim">Dashboard panels</span>
+                  <span>16 toggles — anything on a tab can be on the dashboard too</span>
                 </div>
                 <div class="setting-row">
-                  <span class="dim">Port:</span>
-                  <code>7125</code>
+                  <span class="dim">Temperature presets</span>
+                  <span>rename, retarget, add and remove; the buttons follow</span>
                 </div>
                 <div class="setting-row">
-                  <span class="dim">Protocol:</span>
-                  <code>JSON-RPC 2.0 over WebSocket</code>
+                  <span class="dim">Webcam URL</span>
+                  <code>http://mainsailos.local/webcam/?action=snapshot</code>
+                </div>
+                <div class="setting-row">
+                  <span class="dim">Filament length</span>
+                  <span>1000&nbsp;mm — how far load and unload push</span>
+                </div>
+                <div class="setting-row">
+                  <span class="dim">Saved to</span>
+                  <code>~/.config/klipper-tui/settings.json</code>
                 </div>
               </div>
             </div>
@@ -555,9 +632,11 @@
         <div class="terminal-statusbar">
           <div class="statusbar-left">
             <span class="key-cmd"><kbd>q</kbd> Quit</span>
-            <span class="key-cmd"><kbd>t</kbd> Next Theme</span>
-            <span class="key-cmd"><kbd>Ctrl+E</kbd> Emergency Stop</span>
-            <span class="key-cmd"><kbd>Ctrl+P</kbd> Command Palette</span>
+            <span class="key-cmd"><kbd>d</kbd> Dashboard</span>
+            <span class="key-cmd"><kbd>m</kbd> Move</span>
+            <span class="key-cmd"><kbd>b</kbd> Mesh</span>
+            <span class="key-cmd"><kbd>t</kbd> Theme</span>
+            <span class="key-cmd"><kbd>Ctrl+E</kbd> E-STOP</span>
           </div>
           <div class="statusbar-right">
             <span id="terminalTimeClock">18:39:42</span>
@@ -572,78 +651,132 @@
   <section class="features-section" id="features">
     <div class="container">
       <div class="section-header text-center">
-        <span class="section-tag">Engineered for Performance</span>
-        <h2 class="section-title">Everything you need. Zero bloat.</h2>
+        <span class="section-tag">Features</span>
+        <h2 class="section-title">What it actually does</h2>
         <p class="section-desc">
-          klipper-tui talks directly to Moonraker over persistent async WebSockets with sub-millisecond dispatch.
+          One websocket to Moonraker, and a terminal. Nothing is installed on the printer.
         </p>
       </div>
 
       <div class="features-grid">
-        
-        <!-- Feature 1 -->
+
         <div class="feature-card">
           <div class="feature-icon">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
           </div>
-          <h3 class="feature-title">Isometric 3D Wireframe Projection</h3>
+          <h3 class="feature-title">Live toolpath, layer by layer</h3>
           <p class="feature-text">
-            Render your entire 3D build volume directly in terminal character cells with real-time toolhead coordinates, auto-spin, and dynamic axis bounds.
+            The current layer as the nozzle draws it, read straight from the running file over HTTP range requests. Printed moves are coloured ahead of what is still to come. Zoom, pan, click to centre, or let it follow the print.
           </p>
         </div>
 
-        <!-- Feature 2 -->
         <div class="feature-card">
           <div class="feature-icon">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           </div>
-          <h3 class="feature-title">Sub-Cell Braille Temperature Graphs</h3>
+          <h3 class="feature-title">Braille temperature history</h3>
           <p class="feature-text">
-            Four times the vertical resolution of regular ASCII charts. High-density UTF-8 braille matrix with target temperature line overlays.
+            Ten minutes of hotend and bed at four times the vertical resolution of block characters, seeded from Moonraker's temperature store so the graph is already full when you open it.
           </p>
         </div>
 
-        <!-- Feature 3 -->
         <div class="feature-card">
           <div class="feature-icon">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
           </div>
-          <h3 class="feature-title">Color-Coded Bed Mesh Heightmaps</h3>
+          <h3 class="feature-title">Bed mesh, live while probing</h3>
           <p class="feature-text">
-            Instant visual feedback on your bed level variance. Live probe tracking during calibration and profile persistence.
+            The heightmap fills in point by point as the probe runs — including a run you started in Mainsail, which it joins in progress. Probe count is overridable per run, with a duration estimate as you type.
           </p>
         </div>
 
-        <!-- Feature 4 -->
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+          </div>
+          <h3 class="feature-title">Z offset you can save</h3>
+          <p class="feature-text">
+            Babystep in 0.01mm and 0.05mm while the first layer goes down, then fold the result into the probe's saved offset with one button. It picks Z_OFFSET_APPLY_PROBE or _ENDSTOP based on what your config has.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <h3 class="feature-title">It asks before ruining a print</h3>
+          <p class="feature-text">
+            Homing, jogging, disabling the motors, probing the bed, extruding by hand, running a macro — anything that would wreck a running print asks first, and only while a print is actually running.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+          </div>
+          <h3 class="feature-title">Speed, flow and motion limits</h3>
+          <p class="feature-text">
+            Feedrate and extrusion percentages with presets and a custom entry, plus velocity, acceleration, square corner velocity and minimum cruise ratio, seeded from the printer's own configuration.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.59 4.59A2 2 0 1 1 11 8H2"/><path d="M12.59 19.41A2 2 0 1 0 14 16H2"/><path d="M17.73 7.73A2.5 2.5 0 1 1 19.5 12H2"/></svg>
+          </div>
+          <h3 class="feature-title">Every fan the printer has</h3>
+          <p class="feature-text">
+            Part fan, generic fans and the ones Klipper drives itself, discovered from the printer. Automatic fans are shown with their speed and no controls, because setting them by hand would just be overridden.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          </div>
+          <h3 class="feature-title">Your macros, as buttons</h3>
+          <p class="feature-text">
+            Every [gcode_macro] in your config becomes a button, discovered at connect time. Underscore-prefixed helpers stay hidden, and PAUSE, RESUME and CANCEL_PRINT are already the job controls.
+          </p>
+        </div>
+
         <div class="feature-card">
           <div class="feature-icon">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
           </div>
-          <h3 class="feature-title">Interactive G-Code Shell with History</h3>
+          <h3 class="feature-title">Console with tab completion</h3>
           <p class="feature-text">
-            Send raw G-code, Klipper macros, and Moonraker RPC requests with arrow-key history recall (<kbd>↑</kbd>/<kbd>↓</kbd>) and formatted responses.
+            Send G-code and get the printer's replies. Tab completes against the commands your printer actually reports, plus the plain G and M codes; up and down walk back through what you have sent.
           </p>
         </div>
 
-        <!-- Feature 5 -->
         <div class="feature-card">
           <div class="feature-icon">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
           </div>
-          <h3 class="feature-title">Live Terminal Webcam Streaming</h3>
+          <h3 class="feature-title">The camera, in the terminal</h3>
           <p class="feature-text">
-            Stream your print bed camera directly in your terminal via optional <code>textual-image</code> half-block rendering or ASCII mode.
+            Kitty and ghostty get the graphics protocol, sixel terminals get sixel, and everything else falls back to half-blocks. On kitty the frame is sent as raw pixels rather than a PNG, which is 2ms of encoding instead of 38.
           </p>
         </div>
 
-        <!-- Feature 6 -->
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+          </div>
+          <h3 class="feature-title">A dashboard you arrange</h3>
+          <p class="feature-text">
+            Any of the sixteen panels can be on the dashboard or on its own tab. The layout follows the width of the terminal, packing two or three across when there is room and falling back to one column when there is not.
+          </p>
+        </div>
+
         <div class="feature-card">
           <div class="feature-icon">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
           </div>
-          <h3 class="feature-title">Multi-Theme Token Architecture</h3>
+          <h3 class="feature-title">Eleven themes, or write your own</h3>
           <p class="feature-text">
-            Fully semantic theming system with built-in dark palettes: <strong>Ominous</strong>, <strong>Mainsail</strong>, and <strong>Forge</strong>. Cycle themes instantly with <kbd>t</kbd>.
+            Ominous, Mainsail and Forge ship alongside Nord, Gruvbox, Dracula, Tokyo Night, Catppuccin Mocha, Monokai and Solarized. Pick one from Settings, or add your own to the config file.
           </p>
         </div>
 
@@ -670,8 +803,8 @@
             <div class="node-subtitle">Python 3.10+ &amp; Textual Async Engine</div>
             <ul class="node-specs">
               <li>• Keyboard-driven UI</li>
-              <li>• Braille Graph Canvas</li>
-              <li>• 3D Wireframe Math</li>
+              <li>• Braille graphs, braille toolpaths</li>
+              <li>• Reads the gcode over HTTP ranges</li>
             </ul>
           </div>
         </div>
@@ -722,7 +855,8 @@
         <span class="section-tag">Get Started in Seconds</span>
         <h2 class="section-title">Install &amp; Run</h2>
         <p class="section-desc">
-          Requires Python 3.10 or newer. Works on Linux and macOS.
+          Python 3.10 or newer, on Linux or macOS. Nothing is installed on the printer —
+          it only needs to be reachable at the address you already type into Mainsail.
         </p>
       </div>
 
@@ -752,8 +886,12 @@
         <!-- Step 3 -->
         <div class="qs-card">
           <div class="qs-step-number">3</div>
-          <h3 class="qs-title">Or Set Env Variable</h3>
-          <p class="qs-desc">Save your default printer host in your shell config (<code>~/.bashrc</code> / <code>~/.zshrc</code>):</p>
+          <h3 class="qs-title">Or set it once</h3>
+          <p class="qs-desc">
+            Put the host in your shell config and run it bare. <code>KLIPPER_PORT</code>,
+            <code>KLIPPER_WEBCAM_URL</code>, <code>KLIPPER_RENDER</code> and
+            <code>KLIPPER_THEME</code> work the same way.
+          </p>
           <div class="code-snippet-box">
             <code>export KLIPPER_HOST=192.168.1.50<br>klipper-tui</code>
             <button type="button" class="copy-snippet-btn" data-copy="export KLIPPER_HOST=192.168.1.50 &amp;&amp; klipper-tui" aria-label="Copy code">Copy</button>
@@ -774,7 +912,7 @@
 
       <div class="shortcuts-table-container">
         <div class="table-search-bar">
-          <input type="text" id="shortcutSearchInput" placeholder="Filter keybindings (e.g., 'jog', 'theme', 'console')..." spellcheck="false">
+          <input type="text" id="shortcutSearchInput" placeholder="Filter keybindings (e.g. 'console', 'theme', 'safety')..." spellcheck="false">
         </div>
         <table class="shortcuts-table" id="shortcutsTable">
           <thead>
@@ -787,67 +925,77 @@
           <tbody>
             <tr>
               <td><kbd>d</kbd></td>
-              <td>Switch to <strong>Dashboard</strong> tab</td>
-              <td><span class="cat-badge">Navigation</span></td>
-            </tr>
-            <tr>
-              <td><kbd>c</kbd></td>
-              <td>Switch to <strong>Console</strong> tab</td>
-              <td><span class="cat-badge">Navigation</span></td>
-            </tr>
-            <tr>
-              <td><kbd>m</kbd></td>
-              <td>Switch to <strong>Move 3D</strong> tab</td>
-              <td><span class="cat-badge">Navigation</span></td>
-            </tr>
-            <tr>
-              <td><kbd>f</kbd></td>
-              <td>Switch to <strong>Files</strong> tab</td>
-              <td><span class="cat-badge">Navigation</span></td>
-            </tr>
-            <tr>
-              <td><kbd>b</kbd></td>
-              <td>Switch to <strong>Bed Mesh</strong> tab</td>
-              <td><span class="cat-badge">Navigation</span></td>
-            </tr>
-            <tr>
-              <td><kbd>w</kbd></td>
-              <td>Switch to <strong>Webcam</strong> tab</td>
+              <td>Dashboard tab</td>
               <td><span class="cat-badge">Navigation</span></td>
             </tr>
             <tr>
               <td><kbd>g</kbd></td>
-              <td>Switch to <strong>Graph</strong> tab</td>
+              <td>Graph tab</td>
+              <td><span class="cat-badge">Navigation</span></td>
+            </tr>
+            <tr>
+              <td><kbd>c</kbd></td>
+              <td>Console tab</td>
+              <td><span class="cat-badge">Navigation</span></td>
+            </tr>
+            <tr>
+              <td><kbd>m</kbd></td>
+              <td>Move tab — jog, Z offset, position, toolpath</td>
+              <td><span class="cat-badge">Navigation</span></td>
+            </tr>
+            <tr>
+              <td><kbd>f</kbd></td>
+              <td>Files tab</td>
+              <td><span class="cat-badge">Navigation</span></td>
+            </tr>
+            <tr>
+              <td><kbd>b</kbd></td>
+              <td>Mesh tab</td>
+              <td><span class="cat-badge">Navigation</span></td>
+            </tr>
+            <tr>
+              <td><kbd>w</kbd></td>
+              <td>Webcam tab</td>
               <td><span class="cat-badge">Navigation</span></td>
             </tr>
             <tr>
               <td><kbd>s</kbd></td>
-              <td>Switch to <strong>Settings</strong> tab</td>
+              <td>Settings tab</td>
               <td><span class="cat-badge">Navigation</span></td>
             </tr>
             <tr>
               <td><kbd>Ctrl</kbd> + <kbd>E</kbd></td>
-              <td>Send immediate <strong>Emergency Stop</strong> (M112)</td>
+              <td>Emergency stop, immediately and without confirming</td>
               <td><span class="cat-badge cat-danger">Safety</span></td>
             </tr>
             <tr>
               <td><kbd>t</kbd></td>
-              <td>Cycle to next color theme</td>
+              <td>Next theme. Settings has the full list if you would rather pick</td>
               <td><span class="cat-badge">Appearance</span></td>
             </tr>
             <tr>
-              <td><kbd>Ctrl</kbd> + <kbd>P</kbd></td>
-              <td>Open Textual Command Palette</td>
-              <td><span class="cat-badge">General</span></td>
-            </tr>
-            <tr>
-              <td><kbd>↑</kbd> / <kbd>↓</kbd></td>
-              <td>Recall command history in Console</td>
+              <td><kbd>Tab</kbd></td>
+              <td>Complete the command name in the console</td>
               <td><span class="cat-badge">Console</span></td>
             </tr>
             <tr>
+              <td><kbd>↑</kbd> / <kbd>↓</kbd></td>
+              <td>Walk back through the commands you have sent</td>
+              <td><span class="cat-badge">Console</span></td>
+            </tr>
+            <tr>
+              <td>Double-click</td>
+              <td>Print that file, from the Files tab</td>
+              <td><span class="cat-badge">Files</span></td>
+            </tr>
+            <tr>
+              <td><kbd>Ctrl</kbd> + <kbd>P</kbd></td>
+              <td>Textual's command palette</td>
+              <td><span class="cat-badge">General</span></td>
+            </tr>
+            <tr>
               <td><kbd>q</kbd></td>
-              <td>Quit klipper-tui</td>
+              <td>Quit</td>
               <td><span class="cat-badge">General</span></td>
             </tr>
           </tbody>
@@ -881,7 +1029,8 @@
       <div class="footer-left">
         <div class="footer-brand">klipper-tui</div>
         <p class="footer-text">
-          Released under the <a href="https://github.com/anolis/klipper-tui/blob/master/LICENSE" target="_blank" rel="noopener noreferrer">GPL-3.0 License</a>. Created by Bill Carson.
+          Released under the <a href="https://github.com/anolis/klipper-tui/blob/master/LICENSE" target="_blank" rel="noopener noreferrer">GPL-3.0 License</a>. Created by Bill Carson.<br>
+          An independent client. Not affiliated with or endorsed by the Klipper or Mainsail projects; the Klipper mark belongs to the Klipper project.
         </p>
       </div>
       <div class="footer-links">

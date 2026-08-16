@@ -13,7 +13,6 @@ from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import (
     Button,
     Footer,
-    Header,
     Input,
     Static,
     TabbedContent,
@@ -28,6 +27,7 @@ from .panels.extruder import ExtruderPanel
 from .panels.fans import FansPanel, speed_command
 from .panels.files import FilesPanel
 from .panels.machine import MachinePanel
+from .panels.header import KlipperHeader
 from .panels.macros import MacrosPanel
 from .panels.objects import ObjectsPanel
 from .panels.gcodeview import GcodeViewPanel
@@ -157,7 +157,7 @@ class KlipperTUI(App):
     # -- layout ---------------------------------------------------------------
 
     def compose(self) -> ComposeResult:
-        yield Header(show_clock=True)
+        yield KlipperHeader(self.TITLE, self.sub_title, self.renderer)
         with TabbedContent(initial="dashboard"):
             with TabPane("Dashboard", id="dashboard"):
                 yield VerticalScroll(id="dash-panels")
@@ -435,6 +435,10 @@ class KlipperTUI(App):
 
     def _handle_conn(self, connected: bool, klippy_state: str) -> None:
         self._track_restart(connected, klippy_state)
+        try:
+            self.query_one(KlipperHeader).set_state(connected, klippy_state)
+        except Exception:
+            pass
         self.call_later(self._sync_offline_screen, connected, klippy_state)
         try:
             bar = self.query_one("#statusbar", Static)
@@ -1122,6 +1126,10 @@ class KlipperTUI(App):
             await self.send("G28")
         elif bid in ("th-home-x", "th-home-y", "th-home-z"):
             await self.send(f"G28 {bid[-1].upper()}")
+        elif bid == "th-step-cycle":
+            owner = self._owner(button, ToolheadPanel)
+            if owner is not None:
+                owner.step = owner.next_step()
         elif bid.startswith("th-step-"):
             raw = bid.removeprefix("th-step-").replace("_", ".")
             owner = self._owner(button, ToolheadPanel)

@@ -22,9 +22,35 @@ TabbedContent ContentSwitcher {
     dock: bottom;
 }
 
-Header {
+/* Three rows: the chevron needs them, and the connection state fills them. */
+#app-header {
+    height: 3;
+    dock: top;
     background: $surface;
     color: $foreground;
+    padding: 0 2;
+}
+
+#hd-logo {
+    width: 11;
+    height: 3;
+    margin: 0 1 0 0;
+}
+
+#hd-text {
+    width: 1fr;
+    height: 3;
+    padding: 0 0 0 1;
+}
+
+#hd-text Static {
+    height: 1;
+}
+
+#hd-clock {
+    width: 10;
+    height: 3;
+    content-align: right middle;
 }
 
 Footer {
@@ -228,10 +254,89 @@ Input:focus {
     content-align: left middle;
 }
 
+/* --- Jog cross ------------------------------------------------------------ */
+
+/* X and Y as a cross, Z as a column beside it, so each button sits where the
+   movement it causes points. */
+#th-jog-cluster {
+    height: auto;
+    width: auto;
+    padding: 1 0 0 0;
+}
+
+#th-xy-pad {
+    grid-size: 3 3;
+    grid-columns: 9 9 9;
+    grid-rows: 3 3 3;
+    width: 29;
+    height: 9;
+}
+
+#th-z-pad {
+    width: 11;
+    height: 9;
+    padding: 0 0 0 1;
+}
+
+#th-jog-cluster Button.jog {
+    width: 100%;
+    min-width: 6;
+    margin: 0;
+}
+
+/* The middle of the cross reads as a readout, not another jog button. */
+#th-jog-cluster Button.-step {
+    background: $panel;
+    color: $accent;
+    border: round $panel-lighten-2;
+}
+
+#th-z-pad-label {
+    height: 3;
+    width: 100%;
+    content-align: center middle;
+    color: $text-muted;
+}
+
 /* --- Heightmap ----------------------------------------------------------- */
+
+/* The map beside its controls rather than under them: a heightmap is roughly
+   square, so on its own row it leaves most of a wide panel empty. */
+#bm-body {
+    height: auto;
+    width: 100%;
+}
+
+#bm-sidebar {
+    width: 26;
+    height: auto;
+    padding: 0 2 0 0;
+}
+
+#bm-sidebar Button {
+    width: 100%;
+    margin: 0;
+}
+
+#bm-sidebar Input {
+    width: 100%;
+    height: 3;
+    margin: 0 0 1 0;
+}
+
+#bm-sidebar #bm-estimate,
+#bm-sidebar #bm-info {
+    width: 100%;
+    height: auto;
+}
+
+#bm-sidebar #bm-info {
+    padding: 1 0 0 0;
+}
 
 #heightmap {
     height: auto;
+    width: auto;
     background: $surface;
     border: round $panel-lighten-2;
     padding: 1;

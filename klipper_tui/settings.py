@@ -31,7 +31,7 @@ PANEL_MIN_WIDTH: dict[str, int] = {
     "objects": 60,
     "tuning": 68,
     "extruder": 68,
-    "toolhead": 70,
+    "toolhead": 62,
     # Sized by what they draw. A heightmap, a chart or a camera frame squeezed
     # into a narrow column is legible but absurd, so these ask for room even
     # though their buttons would fit in half of it.
@@ -40,7 +40,7 @@ PANEL_MIN_WIDTH: dict[str, int] = {
     "tempgraph": 78,
     "position": 80,
     "gcodeview": 80,
-    "bedmesh": 88,
+    "bedmesh": 74,
     "files": 96,
 }
 
