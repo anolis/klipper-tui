@@ -18,8 +18,8 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Label, Static
 
-# Image rendering is an optional extra (it pulls in Pillow), so the rest of
-# the app must work without it.
+# Image rendering is a required dependency, but a broken or unbuildable Pillow
+# should cost the camera tab rather than the whole application.
 try:
     from PIL import Image as PILImage
     from textual_image.widget import (
@@ -94,9 +94,11 @@ class WebcamPanel(Vertical):
             yield RENDERERS[self.renderer_name](id="wc-image")
         else:
             yield Static(
-                "[$warning]Webcam support is not installed.[/]\n\n"
-                "[$text-muted]Install the extra to enable it:[/]\n"
-                "    pip install 'klipper-tui\\[webcam]'",
+                "[$warning]Image rendering is unavailable.[/]\n\n"
+                "[$text-muted]textual-image or Pillow failed to import, which "
+                "usually means the install is incomplete. Reinstalling should "
+                "fix it:[/]\n"
+                "    pip install --force-reinstall klipper-tui",
                 id="wc-missing",
             )
 

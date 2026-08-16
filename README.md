@@ -21,13 +21,15 @@ itself; this is a client you run on your own machine.
 ## Install
 
 ```bash
-python3 -m venv .venv
-.venv/bin/pip install -e '.[webcam]'
+pipx install klipper-tui
 ```
 
-The `webcam` extra adds terminal image rendering (and pulls in Pillow). Leave
-it off with plain `pip install -e .` if you do not need the camera; the rest of
-the app works fine and the Webcam tab explains what is missing.
+Or from a checkout:
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -e .
+```
 
 ## Run
 
@@ -253,7 +255,7 @@ one that is switched off does no work. Settings are saved to
 
 ## Webcam rendering
 
-The webcam pulls MJPEG snapshots and draws them with
+The webcam draws real images with
 [textual-image](https://pypi.org/project/textual-image/). How good it looks
 depends entirely on the terminal:
 

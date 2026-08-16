@@ -1,6 +1,6 @@
 [project]
 name = "klipper-tui"
-version = "0.3.2"
+version = "0.4.0"
 description = "A terminal UI for Klipper 3D printers, via Moonraker"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -27,12 +27,14 @@ dependencies = [
     "textual>=8.0",
     "httpx>=0.27",
     "websockets>=13.0",
+    "textual-image>=0.12",
 ]
 
 [project.optional-dependencies]
-# Terminal image rendering for the webcam tab. Pulls in Pillow, so it is kept
-# optional for people who do not need it.
-webcam = ["textual-image>=0.12"]
+# Kept so that "klipper-tui[webcam]" still resolves. Terminal image rendering
+# is a plain dependency now; a printer UI without the camera is not a thing
+# anyone wants.
+webcam = []
 
 [project.urls]
 Homepage = "https://github.com/anolis/klipper-tui"
