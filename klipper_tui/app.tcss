@@ -385,3 +385,12 @@ ConfirmScreen {
     background: $surface;
     border: thick $warning;
 }
+
+/* A short caption in a button row must be given a width, or it expands and
+   pushes the buttons out of the panel. */
+.row-label {
+    width: 6;
+    height: 3;
+    content-align: left middle;
+    color: $text-muted;
+}

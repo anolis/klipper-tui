@@ -20,6 +20,7 @@ C_FLOOR = "$vol-floor"
 C_HEAD = "$vol-head"
 C_DROP = "$vol-drop"
 C_AXIS = "$accent"
+C_MODEL = "$hot"
 
 # Cube corners as unit coordinates, and the 12 edges joining them.
 CORNERS = [
@@ -41,6 +42,13 @@ class PositionPanel(Vertical):
         self.zoom = 1.0
         self.pan = [0.0, 0.0]
         self.spinning = True
+        # Deposited material, as a set of voxel keys in millimetres.
+        self.model: set[tuple[int, int, int]] = set()
+        self.show_model = True
+        self.voxel_mm = 2.0
+        self.max_voxels = 6000
+        self._last_e: float | None = None
+        self._job: str | None = None
         self.pos = [0.0, 0.0, 0.0]
         self.limits = ([0.0, 0.0, 0.0], [245.0, 260.0, 400.0])
         self.homed = ""
@@ -58,6 +66,15 @@ class PositionPanel(Vertical):
             yield Button("−", id="ps-zoom-out")
             yield Button("Reset", id="ps-reset")
 
+        with Horizontal(classes="btn-row compact-row"):
+            yield Static("Pan", classes="row-label")
+            yield Button("←", id="ps-pan-left")
+            yield Button("→", id="ps-pan-right")
+            yield Button("↑", id="ps-pan-up")
+            yield Button("↓", id="ps-pan-down")
+            yield Button("Model", id="ps-model", classes="-primary")
+            yield Button("Clear", id="ps-model-clear", classes="-danger")
+
         yield Static("", id="ps-readout")
         yield Static("", id="ps-view", markup=True)
 
@@ -72,6 +89,7 @@ class PositionPanel(Vertical):
     # -- data ------------------------------------------------------------------
 
     def update_status(self, status: dict) -> None:
+        self._record_motion(status)
         toolhead = status.get("toolhead") or {}
         gcode_move = status.get("gcode_move") or {}
         pos = gcode_move.get("gcode_position") or toolhead.get("position")
@@ -83,6 +101,47 @@ class PositionPanel(Vertical):
             self.limits = ([float(v) for v in lo[:3]],
                            [float(v) for v in hi[:3]])
         self.homed = toolhead.get("homed_axes", "")
+
+    def _record_motion(self, status: dict) -> None:
+        """Accumulate deposited material from the live motion report.
+
+        The extruder axis only advances while material is being laid down, so
+        a position sampled with a rising E is a point on the printed object.
+        """
+        stats = status.get("print_stats") or {}
+        job = stats.get("filename") or None
+        if job != self._job:
+            # A different job (or none) starts a fresh model.
+            self._job = job
+            self.model.clear()
+            self._last_e = None
+
+        report = status.get("motion_report") or {}
+        live = report.get("live_position")
+        if not live or len(live) < 4:
+            return
+        x, y, z, e = (float(v) for v in live[:4])
+
+        previous, self._last_e = self._last_e, e
+        if previous is None or e <= previous:
+            return  # travel move or retraction, nothing deposited
+        if stats.get("state") not in ("printing", "paused"):
+            return
+
+        if len(self.model) < self.max_voxels:
+            step = self.voxel_mm
+            self.model.add((
+                int(x / step), int(y / step), int(z / step),
+            ))
+
+    def toggle_model(self) -> bool:
+        self.show_model = not self.show_model
+        self._redraw()
+        return self.show_model
+
+    def clear_model(self) -> None:
+        self.model.clear()
+        self._redraw()
 
     def rotate(self, dyaw: float = 0.0, dtilt: float = 0.0) -> None:
         self.yaw = (self.yaw + dyaw) % (2 * math.pi)
@@ -181,6 +240,17 @@ class PositionPanel(Vertical):
                         *self._project(1, f, 0, fit), C_FLOOR)
 
         lo, hi = self.limits
+
+        # Deposited material, drawn under the toolhead so the marker stays on
+        # top. Height shades the points so layers read apart.
+        if self.show_model and self.model:
+            step = self.voxel_mm
+            for vx, vy, vz in self.model:
+                mu = self._norm(vx * step, lo[0], hi[0])
+                mv = self._norm(vy * step, lo[1], hi[1])
+                mw = self._norm(vz * step, lo[2], hi[2])
+                canvas.set(*self._project(mu, mv, mw, fit), C_MODEL)
+
         u, v, w = (self._norm(self.pos[i], lo[i], hi[i]) for i in range(3))
 
         # Drop line from the toolhead to the bed, plus a floor crosshair.
@@ -212,7 +282,9 @@ class PositionPanel(Vertical):
             f"[{C_AXIS}]Z[/] [b]{self.pos[2]:7.2f}[/b]   "
             f"[$text-muted]homed[/] {homed}   "
             f"[$text-muted]vol[/] {hi[0]:.0f}×{hi[1]:.0f}×{hi[2]:.0f}   "
-            f"[$text-muted]zoom[/] {self.zoom:.1f}×{warn}"
+            f"[$text-muted]zoom[/] {self.zoom:.1f}×   "
+            f"[$text-muted]model[/] "
+            f"{len(self.model) if self.show_model else 'off'}{warn}"
         )
 
     @staticmethod

@@ -691,6 +691,18 @@ class KlipperTUI(App):
                 "ps-up": (0.0, 0.15), "ps-down": (0.0, -0.15),
             }
             panel.rotate(*deltas[bid])
+        elif bid.startswith("ps-pan-"):
+            panel = self._owner(event.button, PositionPanel)
+            pans = {
+                "ps-pan-left": (-0.08, 0.0), "ps-pan-right": (0.08, 0.0),
+                "ps-pan-up": (0.0, -0.08), "ps-pan-down": (0.0, 0.08),
+            }
+            panel.pan_by(*pans[bid])
+        elif bid == "ps-model":
+            on = self._owner(event.button, PositionPanel).toggle_model()
+            event.button.label = "Model" if on else "No model"
+        elif bid == "ps-model-clear":
+            self._owner(event.button, PositionPanel).clear_model()
         elif bid == "ps-zoom-in":
             self._owner(event.button, PositionPanel).zoom_by(1.25)
         elif bid == "ps-zoom-out":

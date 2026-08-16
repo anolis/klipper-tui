@@ -127,6 +127,22 @@ values and needs to stay comparable between themes. The console resolves
 colours to concrete hex at write time, because `RichLog` renders Rich markup
 and cannot read `$token` styles.
 
+## 3D view
+
+The Move tab draws the build volume as a rotating wireframe with the toolhead
+marked. `◄ ► ▲ ▼` rotate, `+ −` zoom, `← → ↑ ↓` pan, and Reset returns to the
+default view. Spin pauses the automatic rotation.
+
+**Model** builds up a picture of the print as it happens. Positions are sampled
+from Klipper's motion report and a point is kept whenever the extruder axis has
+advanced, so travel moves and retractions leave nothing behind. Points are
+snapped to a 2mm grid and capped, which keeps a long print bounded; the model
+resets when a different job starts, and Clear empties it by hand.
+
+It is a coarse picture, not a gcode preview — the sample rate is whatever
+Moonraker pushes, so fine detail is lost. It is enough to watch a part take
+shape.
+
 ## After a cancelled print
 
 When a running job is cancelled — from here, from Mainsail, or from the
