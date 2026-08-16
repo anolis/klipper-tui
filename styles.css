@@ -2510,10 +2510,20 @@ kbd {
   overflow: hidden;
 }
 
-.terminal-frame #toolpathCanvas {
-  display: block;
-  width: 100%;
-  height: auto;
+/* Braille needs a font that actually has the glyphs and a tight, uniform
+   grid; line-height 1 keeps the dot rows touching so strokes read as lines
+   rather than dotted rules. */
+.terminal-frame #toolpathView {
+  margin: 0;
+  padding: 0.4rem 0.5rem;
+  font-family: "DejaVu Sans Mono", "Noto Sans Mono", "Liberation Mono",
+               var(--font-mono), monospace;
+  font-size: clamp(7px, 1.25vw, 17px);
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: pre;
+  overflow-x: auto;
+  color: var(--path-todo);
   cursor: crosshair;
 }
 

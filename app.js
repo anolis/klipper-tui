@@ -848,36 +848,115 @@ function initLiveClock() {
 
 
 /* --------------------------------------------------------------------------
-   9. Toolpath Viewer
+   9. Braille canvas
+   --------------------------------------------------------------------------
+   A port of klipper_tui/braille.py. Each character cell carries a 2x4 grid of
+   dots, so a drawing made this way has four times the vertical resolution of
+   one built from block characters. A cell can hold only one colour, so
+   overlapping strokes are resolved by draw order — later wins, same as the
+   app.
+   -------------------------------------------------------------------------- */
+const BRAILLE_DOTS = [
+  [0x01, 0x02, 0x04, 0x40], // left column, top to bottom
+  [0x08, 0x10, 0x20, 0x80], // right column
+];
+const BRAILLE_BASE = 0x2800;
+
+function BrailleCanvas(width, height) {
+  this.width = width;
+  this.height = height;
+  this.subWidth = width * 2;
+  this.subHeight = height * 4;
+  this.mask = new Uint8Array(width * height);
+  this.color = new Array(width * height).fill(null);
+}
+
+BrailleCanvas.prototype.set = function (sx, sy, color) {
+  sx = Math.round(sx);
+  sy = Math.round(sy);
+  if (sx < 0 || sy < 0 || sx >= this.subWidth || sy >= this.subHeight) return;
+  const cx = sx >> 1;
+  const cy = sy >> 2;
+  const at = cy * this.width + cx;
+  this.mask[at] |= BRAILLE_DOTS[sx & 1][sy & 3];
+  this.color[at] = color;
+};
+
+BrailleCanvas.prototype.line = function (sx0, sy0, sx1, sy1, color) {
+  sx0 = Math.round(sx0); sy0 = Math.round(sy0);
+  sx1 = Math.round(sx1); sy1 = Math.round(sy1);
+  const dx = Math.abs(sx1 - sx0);
+  const dy = -Math.abs(sy1 - sy0);
+  const stepX = sx0 < sx1 ? 1 : -1;
+  const stepY = sy0 < sy1 ? 1 : -1;
+  let err = dx + dy;
+  for (;;) {
+    this.set(sx0, sy0, color);
+    if (sx0 === sx1 && sy0 === sy1) return;
+    const err2 = 2 * err;
+    if (err2 >= dy) { err += dy; sx0 += stepX; }
+    if (err2 <= dx) { err += dx; sy0 += stepY; }
+  }
+};
+
+/** One HTML string, with runs of equal colour merged into a single span. */
+BrailleCanvas.prototype.renderHTML = function () {
+  const rows = [];
+  for (let cy = 0; cy < this.height; cy++) {
+    let out = '';
+    let runColor = null;
+    let run = '';
+    const flush = () => {
+      if (!run) return;
+      out += runColor ? `<span style="color:${runColor}">${run}</span>` : run;
+      run = '';
+    };
+    for (let cx = 0; cx < this.width; cx++) {
+      const at = cy * this.width + cx;
+      const bits = this.mask[at];
+      const char = bits ? String.fromCharCode(BRAILLE_BASE + bits) : ' ';
+      const color = bits ? this.color[at] : null;
+      if (color !== runColor) { flush(); runColor = color; }
+      run += char;
+    }
+    flush();
+    rows.push(out);
+  }
+  return rows.join('\n');
+};
+
+/* --------------------------------------------------------------------------
+   10. Toolpath Viewer
    --------------------------------------------------------------------------
    The app reads the running gcode over HTTP range requests and draws the
-   current layer in braille, colouring what the nozzle has already laid down
-   differently from what is still ahead of it. There is no gcode here, so the
-   layer is generated: concentric perimeters around a blob plus zig-zag infill,
-   which is what a sliced layer looks like from above.
+   current layer into a braille canvas, colouring what the nozzle has already
+   laid down differently from what is still ahead of it. This draws the same
+   way, into the same kind of canvas — there is just no gcode behind it, so
+   the layer is generated: three perimeters around a blob that changes shape
+   with height, plus zig-zag infill clipped to it.
    -------------------------------------------------------------------------- */
 function initToolpathViewer() {
-  const canvas = document.getElementById('toolpathCanvas');
-  if (!canvas || !canvas.getContext) return;
-  const ctx = canvas.getContext('2d');
+  const view = document.getElementById('toolpathView');
+  if (!view) return;
 
+  // Cells, not pixels. The app's panel is about this size on a wide terminal.
+  const COLS = 104;
+  const ROWS = 26;
   const TOTAL_LAYERS = 103;
+
   let layer = 42;
   let zoom = 1;
   let pan = { x: 0, y: 0 };
   let follow = true;
-  let progress = 0.61;          // fraction of the layer already printed
+  let progress = 0.61;
 
-  /* --- the layer's outline, as a closed loop of points ------------------- */
-
-  function outline(index, inset) {
-    // A blob that changes shape slowly with height, so stepping through
-    // layers looks like stepping through a model rather than a flip-book.
+  function outline(index, inset, steps) {
     const points = [];
+    const count = steps || 220;
     const wobble = 0.35 + 0.1 * Math.sin(index / 9);
     const twist = index / 26;
-    for (let i = 0; i < 220; i++) {
-      const t = (i / 220) * Math.PI * 2;
+    for (let i = 0; i <= count; i++) {
+      const t = (i / count) * Math.PI * 2;
       const r = 1
         + wobble * Math.sin(3 * t + twist)
         + 0.12 * Math.sin(7 * t - twist * 2);
@@ -899,32 +978,31 @@ function initToolpathViewer() {
     return hit;
   }
 
-  /* --- perimeters, then infill, in the order a slicer emits them ---------- */
-
+  /** Perimeters first, then infill, in the order a slicer emits them. */
   function buildLayer(index) {
     const strokes = [];
     for (let shell = 0; shell < 3; shell++) {
-      strokes.push(outline(index, shell * 0.07));
+      strokes.push(outline(index, shell * 0.075));
     }
 
-    const shape = outline(index, 0.21);
+    // The clip polygon is only used for point-in-polygon tests, once per
+    // candidate infill sample. At full resolution that is a couple of million
+    // edge crossings per layer; a coarser loop is indistinguishable here.
+    const shape = outline(index, 0.24, 72);
     const angle = (index % 2 ? 45 : -45) * Math.PI / 180;
     const cos = Math.cos(angle);
     const sin = Math.sin(angle);
-    const step = 0.075;
     let flip = false;
-    for (let u = -2; u <= 2; u += step) {
-      const run = [];
-      for (let v = -2; v <= 2; v += 0.02) {
+    for (let u = -2; u <= 2; u += 0.085) {
+      let run = [];
+      for (let v = -2; v <= 2; v += 0.03) {
         const x = u * cos - v * sin;
         const y = u * sin + v * cos;
         if (inside(shape, x, y)) {
           run.push([x, y]);
-        } else if (run.length > 1) {
-          strokes.push(flip ? run.slice().reverse() : run.slice());
-          run.length = 0;
         } else {
-          run.length = 0;
+          if (run.length > 1) strokes.push(flip ? run.reverse() : run);
+          run = [];
         }
       }
       if (run.length > 1) strokes.push(flip ? run.reverse() : run);
@@ -934,120 +1012,82 @@ function initToolpathViewer() {
   }
 
   let strokes = buildLayer(layer);
-
-  function totalPoints() {
-    return strokes.reduce((n, s) => n + s.length, 0);
-  }
-
-  /* --- drawing ------------------------------------------------------------ */
+  const pointCount = () => strokes.reduce((n, s) => n + s.length, 0);
 
   function themeColors() {
-    // The same three colours the app uses: $hot for what has been laid down,
-    // $vol-floor for what is still ahead of the nozzle, $vol-head for the
-    // nozzle itself.
     const style = getComputedStyle(document.documentElement);
     return {
       done: style.getPropertyValue('--path-done').trim() || '#d1553d',
       todo: style.getPropertyValue('--path-todo').trim() || '#5c4a52',
-      grid: style.getPropertyValue('--border-subtle').trim() || '#2d2024',
       head: style.getPropertyValue('--path-head').trim() || '#e0a13c',
     };
   }
 
   function render() {
-    const w = canvas.width;
-    const h = canvas.height;
+    const canvas = new BrailleCanvas(COLS, ROWS);
     const colors = themeColors();
-    ctx.clearRect(0, 0, w, h);
 
-    const scale = Math.min(w, h * 2) / 4.6 * zoom;
-    const cx = w / 2 + pan.x * scale;
-    const cy = h / 2 + pan.y * scale;
-    const px = (p) => [cx + p[0] * scale, cy - p[1] * scale];
+    // The frame is fixed rather than per-layer, so stepping through layers
+    // does not make the view jump about. Same reason the app frames on the
+    // whole file rather than the layer in front of it.
+    const span = 3.1;
+    const scale = Math.min(canvas.subWidth / span, canvas.subHeight / span)
+      * 0.96 * zoom;
+    const offX = (canvas.subWidth - span * scale) / 2 + pan.x * canvas.subWidth;
+    const offY = (canvas.subHeight - span * scale) / 2 + pan.y * canvas.subHeight;
+    // Bed Y grows away from the viewer; screen Y grows downward.
+    const place = (p) => [
+      offX + (p[0] + span / 2) * scale,
+      canvas.subHeight - offY - (p[1] + span / 2) * scale,
+    ];
 
-    // A faint bed grid behind the path, as the terminal draws.
-    ctx.strokeStyle = colors.grid;
-    ctx.lineWidth = 1;
-    const gap = scale / 2;
-    ctx.beginPath();
-    for (let x = cx % gap; x < w; x += gap) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
-    for (let y = cy % gap; y < h; y += gap) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
-    ctx.stroke();
-
-    const total = totalPoints();
+    const total = pointCount();
     const printed = Math.floor(total * progress);
-
     let seen = 0;
-    let headAt = null;
-    ctx.lineWidth = 2;
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
+    let head = null;
 
     for (const stroke of strokes) {
-      // A stroke can straddle the nozzle: draw the printed part, then the rest.
-      const startIndex = seen;
-      const endIndex = seen + stroke.length;
-      seen = endIndex;
-
-      const cut = Math.max(0, Math.min(stroke.length, printed - startIndex));
-      if (cut > 1) {
-        ctx.strokeStyle = colors.done;
-        ctx.beginPath();
-        stroke.slice(0, cut).forEach((p, i) => {
-          const [sx, sy] = px(p);
-          i ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy);
-        });
-        ctx.stroke();
-        if (printed >= startIndex && printed <= endIndex) {
-          headAt = px(stroke[cut - 1]);
-        }
+      for (let i = 1; i < stroke.length; i++) {
+        const laid = seen + i <= printed;
+        const [x0, y0] = place(stroke[i - 1]);
+        const [x1, y1] = place(stroke[i]);
+        canvas.line(x0, y0, x1, y1, laid ? colors.done : colors.todo);
+        if (laid) head = [x1, y1];
       }
-      if (cut < stroke.length) {
-        ctx.strokeStyle = colors.todo;
-        ctx.beginPath();
-        stroke.slice(Math.max(0, cut - 1)).forEach((p, i) => {
-          const [sx, sy] = px(p);
-          i ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy);
-        });
-        ctx.stroke();
+      seen += stroke.length;
+    }
+
+    if (head) {
+      const [hx, hy] = head;
+      for (let d = -2; d <= 2; d++) {
+        canvas.set(hx + d, hy, colors.head);
+        canvas.set(hx, hy + d, colors.head);
       }
     }
 
-    if (headAt) {
-      ctx.fillStyle = colors.head;
-      ctx.beginPath();
-      ctx.arc(headAt[0], headAt[1], 3.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    view.innerHTML = canvas.renderHTML();
 
-    const done = document.getElementById('tpDone');
-    const layerEl = document.getElementById('tpLayer');
-    const zEl = document.getElementById('tpZ');
-    const zoomEl = document.getElementById('tpZoom');
-    const stateEl = document.getElementById('tpState');
-    if (done) done.textContent = printed;
-    if (layerEl) layerEl.textContent = layer;
-    if (zEl) zEl.textContent = (layer * 0.2).toFixed(2);
-    if (zoomEl) zoomEl.textContent = zoom.toFixed(1);
-    if (stateEl) {
-      stateEl.textContent = follow ? 'following' : 'held';
-      stateEl.className = follow ? 'ok' : 'held';
+    const set = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+    set('tpDone', printed);
+    set('tpTotal', '/' + total);
+    set('tpLayer', layer);
+    set('tpZ', (layer * 0.2).toFixed(2));
+    set('tpZoom', zoom.toFixed(1));
+    const state = document.getElementById('tpState');
+    if (state) {
+      state.textContent = follow ? 'following' : 'held';
+      state.className = follow ? 'ok' : 'held';
     }
-    // The move count depends on how the layer was generated, so the total is
-    // written alongside the printed count rather than hardcoded in the markup.
-    const movesTotal = document.getElementById('tpTotal');
-    if (movesTotal) movesTotal.textContent = '/' + total;
-  }
-
-  function reshape() {
-    strokes = buildLayer(layer);
-    render();
   }
 
   function step(by) {
     layer = Math.max(1, Math.min(TOTAL_LAYERS, layer + by));
     follow = false;
-    reshape();
+    strokes = buildLayer(layer);
+    render();
   }
 
   const on = (id, fn) => {
@@ -1060,24 +1100,20 @@ function initToolpathViewer() {
   on('tpZoomIn', () => { zoom = Math.min(6, zoom * 1.25); render(); });
   on('tpZoomOut', () => { zoom = Math.max(0.5, zoom / 1.25); render(); });
   on('tpFit', () => { zoom = 1; pan = { x: 0, y: 0 }; render(); });
-  on('tpPanLeft', () => { pan.x += 0.25 / zoom; render(); });
-  on('tpPanRight', () => { pan.x -= 0.25 / zoom; render(); });
-  on('tpPanUp', () => { pan.y -= 0.25 / zoom; render(); });
-  on('tpPanDown', () => { pan.y += 0.25 / zoom; render(); });
+  on('tpPanLeft', () => { pan.x += 0.15 / zoom; render(); });
+  on('tpPanRight', () => { pan.x -= 0.15 / zoom; render(); });
+  on('tpPanUp', () => { pan.y -= 0.15 / zoom; render(); });
+  on('tpPanDown', () => { pan.y += 0.15 / zoom; render(); });
   on('tpFollow', () => { follow = !follow; render(); });
 
-  // Clicking the view centres what was clicked, as the app does.
-  canvas.addEventListener('click', (event) => {
-    const rect = canvas.getBoundingClientRect();
-    const x = (event.clientX - rect.left) / rect.width - 0.5;
-    const y = (event.clientY - rect.top) / rect.height - 0.5;
-    const aspect = canvas.width / canvas.height;
-    pan.x -= x * 4.6 / zoom;
-    pan.y += y * 4.6 / zoom / aspect;
+  // Clicking centres what was clicked, as the app does.
+  view.addEventListener('click', (event) => {
+    const rect = view.getBoundingClientRect();
+    pan.x -= (event.clientX - rect.left) / rect.width - 0.5;
+    pan.y -= (event.clientY - rect.top) / rect.height - 0.5;
     render();
   });
 
-  // The nozzle keeps laying material down, and rolls onto the next layer.
   setInterval(() => {
     if (!follow) return;
     progress += 0.012;
@@ -1087,7 +1123,7 @@ function initToolpathViewer() {
       strokes = buildLayer(layer);
     }
     render();
-  }, 120);
+  }, 140);
 
   render();
 }
