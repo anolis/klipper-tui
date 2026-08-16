@@ -1012,17 +1012,28 @@ class KlipperTUI(App):
                             group="machine", exclusive=True)
 
         # Toolpath viewer
-        elif bid in ("gv-follow", "gv-prev", "gv-next", "gv-fit"):
+        elif bid.startswith("gv-"):
             panel = self._owner(event.button, GcodeViewPanel)
-            if panel is not None:
-                if bid == "gv-follow":
-                    on = panel.toggle_follow()
-                    event.button.label = "Follow" if on else "Held"
-                elif bid == "gv-fit":
-                    panel.refit()
-                else:
-                    panel.step(1 if bid == "gv-next" else -1)
-                self._refresh_toolpath()
+            if panel is None:
+                return
+            if bid == "gv-follow":
+                on = panel.toggle_follow()
+                event.button.label = "Follow" if on else "Held"
+            elif bid == "gv-fit":
+                panel.refit()
+            elif bid in ("gv-prev", "gv-next"):
+                panel.step(1 if bid == "gv-next" else -1)
+            elif bid == "gv-zoom-in":
+                panel.zoom_by(1.4)
+            elif bid == "gv-zoom-out":
+                panel.zoom_by(1 / 1.4)
+            elif bid.startswith("gv-pan-"):
+                pans = {
+                    "gv-pan-left": (-0.08, 0.0), "gv-pan-right": (0.08, 0.0),
+                    "gv-pan-up": (0.0, 0.08), "gv-pan-down": (0.0, -0.08),
+                }
+                panel.pan_by(*pans[bid])
+            self._refresh_toolpath()
 
         # Material presets
         elif bid == "st-preset-apply":

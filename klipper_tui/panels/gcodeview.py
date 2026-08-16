@@ -21,6 +21,8 @@ class GcodeViewPanel(Vertical):
         self.toolpath: Toolpath | None = None
         self.layer_index: int | None = None
         self.follow = True
+        self.zoom = 1.0
+        self.pan = [0.0, 0.0]
         self.file_position = 0
         self.head: tuple[float, float] | None = None
         self.status_text = "No job loaded."
@@ -36,7 +38,16 @@ class GcodeViewPanel(Vertical):
             yield Button("Follow", id="gv-follow", classes="-primary")
             yield Button("−1", id="gv-prev")
             yield Button("+1", id="gv-next")
+            yield Button("+", id="gv-zoom-in")
+            yield Button("−", id="gv-zoom-out")
             yield Button("Fit", id="gv-fit")
+
+        with Horizontal(classes="btn-row compact-row"):
+            yield Static("Pan", classes="row-label")
+            yield Button("←", id="gv-pan-left")
+            yield Button("→", id="gv-pan-right")
+            yield Button("↑", id="gv-pan-up")
+            yield Button("↓", id="gv-pan-down")
         yield Static("", id="gv-info", classes="dim")
         yield Static("", id="gv-view", markup=True)
 
@@ -99,8 +110,23 @@ class GcodeViewPanel(Vertical):
         self._cache_key = None
         return self.follow
 
+    def zoom_by(self, factor: float) -> None:
+        self.zoom = max(0.5, min(20.0, self.zoom * factor))
+        self._cache_key = None
+        self._redraw()
+
+    def pan_by(self, dx: float, dy: float) -> None:
+        # Pan in fractions of the view, so it feels the same at any zoom.
+        self.pan[0] += dx / self.zoom
+        self.pan[1] += dy / self.zoom
+        self._cache_key = None
+        self._redraw()
+
     def refit(self) -> None:
+        """Reframe on the layer in view and undo any zoom or pan."""
         self.frame = self.toolpath.bounds() if self.toolpath else None
+        self.zoom = 1.0
+        self.pan = [0.0, 0.0]
         self._cache_key = None
         self._redraw()
 
@@ -124,7 +150,7 @@ class GcodeViewPanel(Vertical):
         # Only the printed fraction changes moment to moment; redraw when it
         # advances enough to matter, not on every tick.
         key = (self.layer_index, width, height, self.file_position // 4096,
-               self.frame)
+               self.frame, self.zoom, self.pan[0], self.pan[1])
         if key != self._cache_key:
             self._cache_key = key
             self._cache = self._render_toolpath(width, height)
@@ -141,6 +167,7 @@ class GcodeViewPanel(Vertical):
             f"[$text-muted]z[/] [b]{layer.z if layer else 0:.2f}[/b]   "
             f"[$text-muted]moves[/] [b]{done}[/b][$text-muted]/{total}[/]   "
             f"{'[$success]following[/]' if self.follow else '[$warning]held[/]'}"
+            f"   [$text-muted]zoom[/] {self.zoom:.1f}×"
         )
 
     def _render_toolpath(self, width: int, height: int) -> list[str]:
@@ -150,9 +177,12 @@ class GcodeViewPanel(Vertical):
         span_y = max(1e-6, max_y - min_y)
         # Braille subpixels are square, so keep one scale for both axes and
         # centre what is left over.
-        scale = min(canvas.sub_width / span_x, canvas.sub_height / span_y) * 0.96
-        off_x = (canvas.sub_width - span_x * scale) / 2
-        off_y = (canvas.sub_height - span_y * scale) / 2
+        scale = (min(canvas.sub_width / span_x, canvas.sub_height / span_y)
+                 * 0.96 * self.zoom)
+        off_x = ((canvas.sub_width - span_x * scale) / 2
+                 + self.pan[0] * canvas.sub_width)
+        off_y = ((canvas.sub_height - span_y * scale) / 2
+                 - self.pan[1] * canvas.sub_height)
 
         def place(x: float, y: float) -> tuple[int, int]:
             # Bed Y grows away from the viewer; screen Y grows downward.
