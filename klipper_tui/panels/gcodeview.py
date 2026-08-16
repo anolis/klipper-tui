@@ -127,7 +127,7 @@ class GcodeViewPanel(Vertical):
                self.frame)
         if key != self._cache_key:
             self._cache_key = key
-            self._cache = self._render(width, height)
+            self._cache = self._render_toolpath(width, height)
         view.update("\n".join(self._cache))
 
         layer = self.gcode_layers[self.layer_index] if self.layer_index is not None \
@@ -143,7 +143,7 @@ class GcodeViewPanel(Vertical):
             f"{'[$success]following[/]' if self.follow else '[$warning]held[/]'}"
         )
 
-    def _render(self, width: int, height: int) -> list[str]:
+    def _render_toolpath(self, width: int, height: int) -> list[str]:
         canvas = BrailleCanvas(width, height)
         min_x, min_y, max_x, max_y = self.frame
         span_x = max(1e-6, max_x - min_x)
