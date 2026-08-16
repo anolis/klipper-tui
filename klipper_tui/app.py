@@ -89,6 +89,8 @@ class KlipperTUI(App):
         self._job_meta: dict = {}
         self._layers: list = []
         self._gcode_path = None
+        self._download_done = 0
+        self._toolpath_timer = None
         self._cooldown_pending = False
         self._offline_screen: OfflineScreen | None = None
         # Commands are queued and sent by a background task. Awaiting a slow
@@ -332,61 +334,105 @@ class KlipperTUI(App):
             )
 
     async def _load_toolpath(self, filename: str) -> None:
-        """Fetch the gcode once, index its layers, then keep the view fed."""
-        for panel in self.query(GcodeViewPanel):
-            panel.status_text = "Fetching gcode…"
+        """Fetch the gcode and index its layers, showing the layer in progress
+        as soon as enough of the file has arrived.
+
+        The printer is usually only a little way into the file, and the part
+        that matters is everything up to there. Waiting for a whole 28MB
+        download before drawing anything left the panel saying "fetching" for
+        the best part of a minute.
+        """
+        target = state_path(f"gcode/{filename.replace('/', '_')}")
+        expected = self._job_meta.get("size")
+        if target.is_file() and (not expected
+                                 or target.stat().st_size == expected):
+            await self._index_toolpath(filename, target, partial=False)
+            return
+
+        target.parent.mkdir(parents=True, exist_ok=True)
+        partial = target.with_name(target.name + ".part")
+        self._download_done = 0
+        download = asyncio.create_task(
+            self._download_gcode(filename, partial, expected))
+
+        # Everything printed so far lives in the leading bytes, so the current
+        # layer can be drawn once the download passes the print position.
+        needed = int((self.client.status.get("virtual_sdcard") or {})
+                     .get("file_position") or 0) + (1 << 20)
+        shown_early = False
+
+        while not download.done():
+            done = self._download_done
+            if expected:
+                self._set_toolpath_status(
+                    f"Fetching gcode… {done / 1e6:.1f} of "
+                    f"{expected / 1e6:.1f} MB ({done * 100 // expected}%)")
+            else:
+                self._set_toolpath_status(
+                    f"Fetching gcode… {done / 1e6:.1f} MB")
+
+            if not shown_early and done > needed and partial.is_file():
+                shown_early = True
+                await self._index_toolpath(filename, partial, partial=True)
+            await asyncio.sleep(0.4)
 
         try:
-            path = await self._fetch_gcode(filename)
+            await download
         except Exception as exc:
-            for panel in self.query(GcodeViewPanel):
-                panel.status_text = f"Could not fetch gcode: {exc}"
+            self._set_toolpath_status(f"Could not fetch gcode: {exc}")
             return
         if filename != self._job_file:
             return
+        await self._index_toolpath(filename, target, partial=False)
 
+    def _set_toolpath_status(self, message: str) -> None:
         for panel in self.query(GcodeViewPanel):
-            panel.status_text = "Indexing layers…"
-        try:
-            layers = await asyncio.to_thread(index_layers, path)
-            if not layers:
-                layers = await asyncio.to_thread(index_layers_by_z, path)
-        except Exception as exc:
-            for panel in self.query(GcodeViewPanel):
-                panel.status_text = f"Could not read gcode: {exc}"
-            return
-        if filename != self._job_file:
-            return
+            panel.status_text = message
 
-        self._gcode_path = path
-        self._layers = layers
-        for panel in self.query(GcodeViewPanel):
-            panel.set_layers(layers)
-        self.set_interval(1.0, self._refresh_toolpath)
-        self._refresh_toolpath()
-
-    async def _fetch_gcode(self, filename: str):
-        """Download the gcode, reusing the copy on disk when it still matches."""
+    async def _download_gcode(self, filename: str, partial, expected) -> None:
         from urllib.parse import quote
 
-        safe = filename.replace("/", "_")
-        path = state_path(f"gcode/{safe}")
-        expected = self._job_meta.get("size")
-        if path.is_file() and (not expected or path.stat().st_size == expected):
-            return path
-
-        path.parent.mkdir(parents=True, exist_ok=True)
         url = f"{self.client.http_url}/server/files/gcodes/{quote(filename)}"
-        partial = path.with_suffix(path.suffix + ".part")
         async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, read=120.0)) \
                 as client:
             async with client.stream("GET", url) as response:
                 response.raise_for_status()
                 with open(partial, "wb") as handle:
-                    async for chunk in response.aiter_bytes(1 << 16):
+                    async for chunk in response.aiter_bytes(1 << 18):
                         handle.write(chunk)
-        partial.replace(path)
-        return path
+                        self._download_done += len(chunk)
+        partial.replace(partial.with_name(partial.name[: -len(".part")]))
+
+    async def _index_toolpath(self, filename: str, path, partial: bool) -> None:
+        """Index a file — possibly still downloading — and show its layers."""
+        self._set_toolpath_status("Indexing layers…")
+        try:
+            layers = await asyncio.to_thread(index_layers, path)
+            if not layers:
+                layers = await asyncio.to_thread(index_layers_by_z, path)
+        except Exception as exc:
+            self._set_toolpath_status(f"Could not read gcode: {exc}")
+            return
+        if filename != self._job_file or not layers:
+            if not layers:
+                self._set_toolpath_status("No layers found in this file.")
+            return
+
+        # A partial file's final layer is cut off; drop it rather than draw a
+        # half-parsed one.
+        if partial and len(layers) > 1:
+            layers = layers[:-1]
+
+        self._gcode_path = path
+        self._layers = layers
+        for panel in self.query(GcodeViewPanel):
+            panel.set_layers(layers)
+            if partial:
+                panel.status_text = "Still fetching the rest…"
+        if not self._toolpath_timer:
+            self._toolpath_timer = self.set_interval(
+                1.0, self._refresh_toolpath)
+        self._refresh_toolpath()
 
     def _refresh_toolpath(self) -> None:
         """Parse whichever layer the panels are asking for."""

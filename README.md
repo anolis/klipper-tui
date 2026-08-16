@@ -194,7 +194,10 @@ through it, and Fit reframes on the layer in view.
 
 The gcode is fetched once per job and cached, then indexed to find where each
 layer begins — only the layer being looked at is parsed, so a thirty-megabyte
-print does not have to be held in memory. Which layer is showing comes from the
+print does not have to be held in memory. Drawing starts well before the
+download finishes: everything printed so far is in the leading bytes, so the
+current layer appears as soon as the transfer passes the print position, with
+the rest filling in behind it. Which layer is showing comes from the
 file position Klipper reports, so it matches the printer rather than guessing
 from height. PrusaSlicer, SuperSlicer, and Cura layer markers are understood,
 and a file with no markers is split on its Z moves.
@@ -348,6 +351,10 @@ the *video* feed — this app wants `action=snapshot` instead.
 Those work in Mainsail because a proxy on the printer forwards `/webcam/` to it.
 Use the proxied `http://HOST/webcam/?action=snapshot` form rather than the
 port-specific one in that case.
+
+**The stream stops while the tab is hidden.** A 720p feed is the heaviest thing
+here, and pulling it for a tab nobody is looking at starves everything else. It
+picks up again when the tab comes back.
 
 **Frame rate** is set with the buttons on the tab. Frames come from the
 camera's MJPEG stream, which pushes continuously, so there is no per-frame

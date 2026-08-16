@@ -80,6 +80,10 @@ class WebcamPanel(Vertical):
         self._last_shown = 0.0
         self._frame_times: list[float] = []
         self._status_note = ""
+        # Streaming stops while the panel is off screen. A 720p feed is the
+        # heaviest thing here, and pulling it for a tab nobody is looking at
+        # starves everything else — the gcode download most visibly.
+        self._visible = True
 
     def compose(self) -> ComposeResult:
         yield Label("Webcam", classes="panel-title")
@@ -127,8 +131,22 @@ class WebcamPanel(Vertical):
     # -- control ---------------------------------------------------------------
 
     def _start(self) -> None:
+        if not (self.running and self._visible):
+            return
         if self._frames_task is None or self._frames_task.done():
             self._frames_task = asyncio.create_task(self._run())
+
+    def on_show(self) -> None:
+        self._visible = True
+        if AVAILABLE and self.running:
+            self._start()
+            self._safe_update_info()
+
+    def on_hide(self) -> None:
+        self._visible = False
+        self._stop()
+        self.streaming = False
+        self.measured_fps = 0.0
 
     def _stop(self) -> None:
         task, self._frames_task = self._frames_task, None
@@ -162,7 +180,10 @@ class WebcamPanel(Vertical):
         return self.running
 
     def _update_info(self, extra: str = "") -> None:
-        state = "[$success]live[/]" if self.running else "[$warning]paused[/]"
+        if not self._visible:
+            state = "[$text-muted]idle while hidden[/]"
+        else:
+            state = "[$success]live[/]" if self.running else "[$warning]paused[/]"
         mode = "stream" if self.streaming else "snapshots"
         rate = f"{self.measured_fps:.1f}" if self.measured_fps else "--"
         self.query_one("#wc-info", Static).update(
@@ -176,7 +197,7 @@ class WebcamPanel(Vertical):
 
     async def _run(self) -> None:
         """Prefer the continuous stream; fall back to polling snapshots."""
-        while self.running:
+        while self.running and self._visible:
             try:
                 await self._consume_stream()
             except asyncio.CancelledError:
@@ -206,7 +227,7 @@ class WebcamPanel(Vertical):
             self._status_note = ""
             buffer = bytearray()
             async for chunk in response.aiter_bytes():
-                if not self.running:
+                if not (self.running and self._visible):
                     return
                 buffer += chunk
                 if len(buffer) > MAX_BUFFER:
@@ -224,7 +245,7 @@ class WebcamPanel(Vertical):
 
     async def _poll_snapshots(self) -> None:
         assert self._client is not None
-        while self.running:
+        while self.running and self._visible:
             response = await self._client.get(self.snapshot_url)
             response.raise_for_status()
             self._show(response.content, throttled=False)
