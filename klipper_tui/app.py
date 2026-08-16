@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 
 import httpx
 
@@ -95,6 +96,7 @@ class KlipperTUI(App):
         self._download_done = 0
         self._toolpath_timer = None
         self._dash_width: int | None = None
+        self._last_ui_refresh = 0.0
         self._cooldown_pending = False
         self._offline_screen: OfflineScreen | None = None
         # Commands are queued and sent by a background task. Awaiting a slow
@@ -299,12 +301,32 @@ class KlipperTUI(App):
     # -- client callbacks -----------------------------------------------------
 
     def _handle_status(self, status: dict) -> None:
+        # Data collection runs on every update: these are cheap, and the
+        # graph's history depends on a steady sample rate.
+        try:
+            for graph in self.query(TempGraphPanel):
+                graph.append_live(status)
+            for position in self.query(PositionPanel):
+                position.record_motion(status)
+        except Exception:
+            pass
+
+        # Redrawing every panel is not cheap, and Moonraker pushes several
+        # times a second. Twice a second is plenty for temperatures and
+        # positions, and it is the difference between a responsive interface
+        # and a saturated core.
+        now = time.monotonic()
+        if now - self._last_ui_refresh < 0.5:
+            return
+        self._last_ui_refresh = now
+        self._refresh_panels(status)
+
+    def _refresh_panels(self, status: dict) -> None:
         try:
             for panel in self.query(StatusPanel):
                 panel.update_status(status, self.client.klippy_state)
             # Guarded individually: one panel raising must not stop the
-            # others being updated, which is what happened when a panel lost
-            # its update_status and every panel after it went stale.
+            # others being updated.
             for panel_type in (TemperaturePanel, ExtruderPanel, BedMeshPanel,
                                PositionPanel, TuningPanel, GcodeViewPanel,
                                ToolheadPanel, MachinePanel,
@@ -314,9 +336,6 @@ class KlipperTUI(App):
                         panel.update_status(status)
                     except Exception:
                         pass
-            # A panel can appear on its own tab and on the dashboard at once.
-            for graph in self.query(TempGraphPanel):
-                graph.append_live(status)
         except Exception:
             # Panels may not be mounted yet during the first status burst.
             pass
@@ -1236,7 +1255,8 @@ class KlipperTUI(App):
             self._owner(event.button, PositionPanel).reset_view()
         elif bid == "ps-spin":
             spinning = self._owner(event.button, PositionPanel).toggle_spin()
-            event.button.label = "Spin" if spinning else "Paused"
+            event.button.label = "Stop" if spinning else "Spin"
+            event.button.set_class(spinning, "-primary")
 
         # Webcam
         elif bid == "wc-toggle":

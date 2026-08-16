@@ -28,7 +28,18 @@ class FilesPanel(Vertical):
         yield Static("", id="fl-info", classes="dim")
 
     def on_mount(self) -> None:
+        self._ensure_columns()
+
+    def _ensure_columns(self) -> None:
+        """Add the columns once.
+
+        A panel mounted onto the dashboard is handed the cached file list to
+        catch up, which can arrive before on_mount has run — adding rows to a
+        table with no columns raises.
+        """
         table = self.query_one("#file-table", DataTable)
+        if table.columns:
+            return
         table.add_column("Filename", width=64)
         table.add_column("Size", width=10)
         table.add_column("Modified", width=16)
@@ -38,6 +49,7 @@ class FilesPanel(Vertical):
         self.files = sorted(
             files, key=lambda f: f.get("modified", 0), reverse=True
         )
+        self._ensure_columns()
         table = self.query_one("#file-table", DataTable)
         table.clear()
         for f in self.files:

@@ -18,6 +18,8 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Label, Static
 
+from ..visibility import on_screen
+
 # Image rendering is a required dependency, but a broken or unbuildable Pillow
 # should cost the camera tab rather than the whole application.
 try:
@@ -29,6 +31,34 @@ try:
         TGPImage,
         UnicodeImage,
     )
+
+    def _use_fast_png() -> None:
+        """Encode PNGs for speed rather than size.
+
+        The renderer hands each frame to Pillow's PNG writer, which defaults to
+        compression level 6 — around 140ms for a single 800x450 frame, so a few
+        frames a second saturate a core. Level 1 costs about 36ms for a file
+        under 10% larger, and the frame is thrown away as soon as it is drawn.
+        """
+        from PIL import PngImagePlugin
+
+        if getattr(PngImagePlugin, "_klipper_tui_fast", False):
+            return
+        original = PngImagePlugin._save
+
+        def save(image, fp, filename, *args, **kwargs):
+            # Pass the rest through untouched: PIL's own defaults for these
+            # are not None, and overriding them breaks the writer.
+            image.encoderinfo.setdefault("compress_level", 1)
+            return original(image, fp, filename, *args, **kwargs)
+
+        PngImagePlugin._save = save
+        # The save registry holds a direct reference to the original, so
+        # replacing the module attribute alone changes nothing.
+        PILImage.register_save("PNG", save)
+        PngImagePlugin._klipper_tui_fast = True
+
+    _use_fast_png()
 
     RENDERERS = {
         "auto": Image,
@@ -53,6 +83,12 @@ JPEG_END = b"\xff\xd9"
 # Guard against a response that never yields a complete frame.
 MAX_BUFFER = 8 * 1024 * 1024
 
+# Rough pixels per terminal cell, used to decide how far a frame can be scaled
+# down before it is handed to the renderer. Generous on purpose: too small
+# looks soft, too large is wasted work.
+CELL_PIXELS_W = 8
+CELL_PIXELS_H = 16
+
 
 def stream_url_for(snapshot_url: str) -> str:
     """The streaming form of a snapshot URL, by convention."""
@@ -69,29 +105,34 @@ class WebcamPanel(Vertical):
         self.snapshot_url = snapshot_url
         self.stream_url = stream_url_for(snapshot_url)
         self.renderer_name = renderer if renderer in RENDERERS else "auto"
-        self.fps = 15
+        # Each frame costs roughly 30-40ms to scale and encode for the
+        # terminal, so 15 was never actually reachable — it just pinned a core
+        # trying. Five is smooth enough to watch a print and leaves the rest of
+        # the interface responsive; the buttons go higher if you want.
+        self.fps = 5
         self.running = True
         self.streaming = False
         self.measured_fps = 0.0
 
         self._client: httpx.AsyncClient | None = None
         self._frames_task: asyncio.Task | None = None
-        self._aspect: float | None = None
+        self._fitted: tuple[float, int, int] | None = None
         self._last_shown = 0.0
         self._frame_times: list[float] = []
         self._status_note = ""
         # Streaming stops while the panel is off screen. A 720p feed is the
         # heaviest thing here, and pulling it for a tab nobody is looking at
         # starves everything else — the gcode download most visibly.
-        self._visible = True
+        self._visible = False
 
     def compose(self) -> ComposeResult:
         yield Label("Webcam", classes="panel-title")
 
         with Horizontal(classes="btn-row compact-row"):
             yield Button("Pause", id="wc-toggle", classes="-primary")
+            # Short labels: "30 fps" pushed the row past an 80-column panel.
             for fps in FPS_CHOICES:
-                yield Button(f"{fps} fps", id=f"wc-fps-{fps}")
+                yield Button(f"{fps}", id=f"wc-fps-{fps}")
 
         yield Static("", id="wc-info", classes="dim")
         if AVAILABLE:
@@ -114,7 +155,10 @@ class WebcamPanel(Vertical):
             return
         self._client = httpx.AsyncClient(timeout=httpx.Timeout(10.0, read=30.0))
         self._update_info()
-        self._start()
+        # Show and Hide alone miss a tab that has never been opened, so the
+        # stream is reconciled against what is really on screen.
+        self.set_interval(1.0, self._check_visibility)
+        self._check_visibility()
 
     async def on_unmount(self) -> None:
         task, self._frames_task = self._frames_task, None
@@ -136,17 +180,25 @@ class WebcamPanel(Vertical):
         if self._frames_task is None or self._frames_task.done():
             self._frames_task = asyncio.create_task(self._run())
 
+    def _check_visibility(self) -> None:
+        visible = on_screen(self)
+        if visible == self._visible:
+            return
+        self._visible = visible
+        if visible:
+            if AVAILABLE and self.running:
+                self._start()
+        else:
+            self._stop()
+            self.streaming = False
+            self.measured_fps = 0.0
+        self._safe_update_info()
+
     def on_show(self) -> None:
-        self._visible = True
-        if AVAILABLE and self.running:
-            self._start()
-            self._safe_update_info()
+        self._check_visibility()
 
     def on_hide(self) -> None:
-        self._visible = False
-        self._stop()
-        self.streaming = False
-        self.measured_fps = 0.0
+        self._check_visibility()
 
     def _stop(self) -> None:
         task, self._frames_task = self._frames_task, None
@@ -268,6 +320,7 @@ class WebcamPanel(Vertical):
 
         if frame.height:
             self._fit(frame.width / frame.height)
+        frame = self._scaled(frame)
         try:
             self.query_one("#wc-image").image = frame
         except Exception:
@@ -281,6 +334,33 @@ class WebcamPanel(Vertical):
             self.measured_fps = (len(self._frame_times) - 1) / span if span else 0.0
         self._safe_update_info()
 
+    def _scaled(self, frame):
+        """Shrink a frame to about what the widget can actually show.
+
+        A 720p frame drawn into a widget a few hundred pixels wide is mostly
+        wasted: every one of those pixels is encoded and written to the
+        terminal each time. Scaling first is far cheaper and looks the same.
+        """
+        try:
+            image = self.query_one("#wc-image")
+            cells_w, cells_h = image.size.width, image.size.height
+        except Exception:
+            return frame
+        if cells_w < 2 or cells_h < 2:
+            return frame
+
+        target_w = cells_w * CELL_PIXELS_W
+        target_h = cells_h * CELL_PIXELS_H
+        if frame.width <= target_w and frame.height <= target_h:
+            return frame
+        scale = min(target_w / frame.width, target_h / frame.height)
+        size = (max(1, int(frame.width * scale)),
+                max(1, int(frame.height * scale)))
+        try:
+            return frame.resize(size, PILImage.BILINEAR)
+        except Exception:
+            return frame
+
     def _safe_update_info(self) -> None:
         try:
             self._update_info()
@@ -292,13 +372,19 @@ class WebcamPanel(Vertical):
 
         A terminal cell is roughly twice as tall as it is wide, so the cell
         counts must be divided by that ratio to get the displayed shape.
+
+        Recomputed whenever the space available changes, not only when the
+        aspect does: a widget left at its old size while the panel resizes
+        leaves the terminal scaling the picture, which looks soft.
         """
-        if aspect <= 0 or aspect == self._aspect:
+        if aspect <= 0:
             return
         image = self.query_one("#wc-image")
         avail_w = self.size.width - 4    # panel padding plus image border
         avail_h = self.size.height - 8   # title, controls, info, border
         if avail_w < 4 or avail_h < 3:
+            return
+        if self._fitted == (aspect, avail_w, avail_h):
             return
 
         CELL = 2.0  # cell height / cell width
@@ -313,4 +399,4 @@ class WebcamPanel(Vertical):
         # on each side, so grow the styled size to keep the picture's shape.
         image.styles.width = width + 2
         image.styles.height = height + 2
-        self._aspect = aspect
+        self._fitted = (aspect, avail_w, avail_h)

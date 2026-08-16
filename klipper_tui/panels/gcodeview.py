@@ -7,6 +7,7 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Label, Static
 
 from ..braille import BrailleCanvas
+from ..visibility import on_screen
 from ..gcode import Layer, Toolpath, layer_for_position
 
 C_DONE = "$hot"        # already laid down
@@ -52,7 +53,8 @@ class GcodeViewPanel(Vertical):
         yield Static("", id="gv-view", markup=True)
 
     def on_mount(self) -> None:
-        self.set_interval(0.5, self._redraw)
+        self._visible = True
+        self.set_interval(0.5, self._tick)
         self._redraw()
 
     # -- state -----------------------------------------------------------------
@@ -131,6 +133,11 @@ class GcodeViewPanel(Vertical):
         self._redraw()
 
     # -- drawing ---------------------------------------------------------------
+
+    def _tick(self) -> None:
+        # Nothing to draw for a panel nobody is looking at.
+        if on_screen(self):
+            self._redraw()
 
     def _redraw(self) -> None:
         try:

@@ -10,6 +10,7 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Label, Static
 
 from ..braille import BrailleCanvas
+from ..visibility import on_screen
 
 # Moonraker stores roughly 20 minutes at 1 Hz.
 MAX_SAMPLES = 1200
@@ -54,7 +55,8 @@ class TempGraphPanel(Vertical):
         yield Static("", id="tg-chart", markup=True)
 
     def on_mount(self) -> None:
-        self.set_interval(1.0, self._redraw)
+        self._visible = True
+        self.set_interval(1.0, self._tick)
 
     # -- data ------------------------------------------------------------------
 
@@ -108,6 +110,11 @@ class TempGraphPanel(Vertical):
         return self.show_targets
 
     # -- drawing ---------------------------------------------------------------
+
+    def _tick(self) -> None:
+        # Nothing to draw for a panel nobody is looking at.
+        if on_screen(self):
+            self._redraw()
 
     def _redraw(self) -> None:
         try:

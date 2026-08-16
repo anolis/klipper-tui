@@ -53,6 +53,7 @@ class ToolheadPanel(Vertical):
             # Indexed ids: a widget id cannot contain "+" or ".".
             for index, nudge in enumerate(Z_NUDGES):
                 yield Button(f"{nudge:+g}", id=f"th-znudge-{index}")
+        with Horizontal(classes="btn-row compact-row"):
             yield Button("Reset", id="th-z-reset")
             yield Button("Save", id="th-z-save", classes="-success")
 

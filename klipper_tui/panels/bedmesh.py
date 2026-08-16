@@ -9,6 +9,8 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Input, Label, Static
 
+from ..visibility import on_screen
+
 # Blue (low) -> green (nominal) -> red (high), matching Mainsail's heightmap.
 # Deliberately literal, not theme tokens: the heightmap encodes measured
 # deviation, so the scale must mean the same thing under every theme.
@@ -46,6 +48,7 @@ class BedMeshPanel(Vertical):
         self.live_joined = False          # joined a run already in progress
         self._last_probe_at = 0.0
         self.bounds: tuple[float, float, float, float] | None = None
+        self._render_signature: tuple | None = None
 
     def compose(self) -> ComposeResult:
         yield Label("Bed Mesh", classes="panel-title")
@@ -59,7 +62,9 @@ class BedMeshPanel(Vertical):
         with Horizontal(classes="btn-row"):
             yield Input(placeholder="probe count, e.g. 10 or 10,15",
                         id="bm-count")
-            yield Static("", id="bm-estimate", classes="setting-label")
+        # On its own line: sharing the row let it stretch the panel to fit
+        # whatever it happened to say.
+        yield Static("", id="bm-estimate", classes="dim")
 
         yield Static("", id="bm-info", classes="dim")
         yield Static("", id="heightmap")
@@ -113,6 +118,16 @@ class BedMeshPanel(Vertical):
             self.query_one("#heightmap", Static).update("")
             return
 
+        # A finished mesh is a still picture, but status arrives several times
+        # a second and drawing it costs tens of milliseconds. Only redraw when
+        # the mesh has actually changed — which, in practice, means while a
+        # calibration is running.
+        signature = (profile, len(matrix), len(matrix[0]),
+                     matrix[0][0], matrix[-1][-1], note)
+        if signature == self._render_signature:
+            return
+        self._render_signature = signature
+
         flat = [z for row in matrix for z in row]
         lo, hi = min(flat), max(flat)
         rng = hi - lo
@@ -146,6 +161,7 @@ class BedMeshPanel(Vertical):
         return None
 
     def start_live(self, count: tuple[int, int], joined: bool = False) -> None:
+        self._render_signature = None      # force a redraw when probing ends
         self.live.clear()
         self.live_expected = count
         self.live_joined = joined
@@ -153,6 +169,7 @@ class BedMeshPanel(Vertical):
         self._redraw_live()
 
     def stop_live(self) -> None:
+        self._render_signature = None
         self.live.clear()
         self.live_expected = None
         self.live_joined = False

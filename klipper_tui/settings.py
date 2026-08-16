@@ -15,27 +15,31 @@ DEFAULT_PRESETS: dict[str, tuple[int, int]] = {
     "TPU": (220, 50),
 }
 
-# Narrowest width in columns at which a panel is still comfortable. The
+# Narrowest width in columns at which a panel is still worth looking at. The
 # dashboard packs as many side by side as the terminal allows, so these decide
-# what pairs up and what keeps a row to itself.
+# both what pairs up and how a shared row is divided.
 # These also weight the split: a row divides its width in proportion to them,
 # so a panel needing half again as much as its neighbour gets it rather than an
 # equal share it would overflow.
 PANEL_MIN_WIDTH: dict[str, int] = {
-    "status": 60,
-    "temperature": 68,
-    "machine": 68,
-    "tuning": 70,
-    "extruder": 66,
-    "toolhead": 62,
-    "fans": 66,
-    "tempgraph": 56,
-    "bedmesh": 60,
-    "gcodeview": 58,
-    "position": 58,
-    "console": 50,
-    "files": 62,
-    "webcam": 60,
+    # Sized by their controls: these are rows of buttons and fields.
+    "status": 58,
+    "temperature": 57,
+    "machine": 58,
+    "fans": 56,
+    "tuning": 68,
+    "extruder": 68,
+    "toolhead": 70,
+    # Sized by what they draw. A heightmap, a chart or a camera frame squeezed
+    # into a narrow column is legible but absurd, so these ask for room even
+    # though their buttons would fit in half of it.
+    "webcam": 80,
+    "console": 72,
+    "tempgraph": 78,
+    "position": 80,
+    "gcodeview": 80,
+    "bedmesh": 88,
+    "files": 96,
 }
 
 # key -> (label, default visible on the dashboard)

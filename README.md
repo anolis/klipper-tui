@@ -159,6 +159,17 @@ shutdown needs. Dismiss it with Escape if you want the UI back.
 Both restarts are also on the Settings tab, behind a confirmation, since they
 interrupt a running print.
 
+## Cost
+
+Only what is on screen is drawn. A panel in a tab you are not looking at does
+no work — which matters, because the toolhead view, the toolpath and the webcam
+are each expensive enough to saturate a core on their own.
+
+Redraws are also throttled to twice a second, well under the rate Moonraker
+pushes at; the bed mesh redraws only when the mesh has actually changed, and
+the toolhead view starts still rather than spinning, since rotating it is the
+single most expensive thing here.
+
 ## 3D view
 
 The Move tab draws the build volume as a rotating wireframe with the toolhead
@@ -378,6 +389,10 @@ the *video* feed — this app wants `action=snapshot` instead.
 Those work in Mainsail because a proxy on the printer forwards `/webcam/` to it.
 Use the proxied `http://HOST/webcam/?action=snapshot` form rather than the
 port-specific one in that case.
+
+**Frames are scaled to what the widget can show before being drawn**, and PNGs
+are encoded for speed rather than size. A 720p frame otherwise costs about
+400ms to encode — a few frames a second saturated a core on their own.
 
 **The stream stops while the tab is hidden.** A 720p feed is the heaviest thing
 here, and pulling it for a tab nobody is looking at starves everything else. It

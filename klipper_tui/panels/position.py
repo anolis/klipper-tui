@@ -14,6 +14,7 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Label, Static
 
 from ..braille import BrailleCanvas
+from ..visibility import on_screen
 from ..settings import state_path
 
 # Domain colours resolved from the active theme; see theming.py.
@@ -55,7 +56,10 @@ class PositionPanel(Vertical):
         self.tilt = 0.5
         self.zoom = 1.0
         self.pan = [0.0, 0.0]
-        self.spinning = True
+        # Off by default: rotating the model is by far the most expensive
+        # thing drawn, and a still view you can turn yourself is more useful
+        # than one that never stops.
+        self.spinning = False
         # Deposited material, as a set of voxel keys in millimetres.
         self.model: set[tuple[int, int, int]] = set()
         self.show_model = True
@@ -66,6 +70,9 @@ class PositionPanel(Vertical):
         self._model_cache: list = []
         self._model_cache_key: tuple | None = None
         self._model_dirty = False
+        self._visible = True
+        self._view_cache_key: tuple | None = None
+        self._view_cache: str = ""
         self.pos = [0.0, 0.0, 0.0]
         self.limits = ([0.0, 0.0, 0.0], [245.0, 260.0, 400.0])
         self.homed = ""
@@ -78,10 +85,7 @@ class PositionPanel(Vertical):
             yield Button("►", id="ps-right")
             yield Button("▲", id="ps-up")
             yield Button("▼", id="ps-down")
-            yield Button("Spin", id="ps-spin", classes="-primary")
-            yield Button("+", id="ps-zoom-in")
-            yield Button("−", id="ps-zoom-out")
-            yield Button("Reset", id="ps-reset")
+            yield Button("Spin", id="ps-spin")
 
         with Horizontal(classes="btn-row compact-row"):
             yield Static("Pan", classes="row-label")
@@ -89,6 +93,11 @@ class PositionPanel(Vertical):
             yield Button("→", id="ps-pan-right")
             yield Button("↑", id="ps-pan-up")
             yield Button("↓", id="ps-pan-down")
+
+        with Horizontal(classes="btn-row compact-row"):
+            yield Button("+", id="ps-zoom-in")
+            yield Button("−", id="ps-zoom-out")
+            yield Button("Reset", id="ps-reset")
             yield Button("Model", id="ps-model", classes="-primary")
             yield Button("Clear", id="ps-model-clear", classes="-danger")
 
@@ -96,7 +105,10 @@ class PositionPanel(Vertical):
         yield Static("", id="ps-view", markup=True)
 
     def on_mount(self) -> None:
-        self.set_interval(0.1, self._tick)
+        # Redrawing a rotating model is the most expensive thing here, so it
+        # only runs while the panel is actually on screen.
+        self._visible = True
+        self.set_interval(0.15, self._tick)
         # Persisting costs a file write, so do it on a slow timer rather than
         # on every point.
         self.set_interval(15.0, self._persist_model)
@@ -105,14 +117,21 @@ class PositionPanel(Vertical):
         self._persist_model()
 
     def _tick(self) -> None:
+        if not on_screen(self):
+            return
         if self.spinning:
             self.yaw = (self.yaw + 0.03) % (2 * math.pi)
         self._redraw()
 
     # -- data ------------------------------------------------------------------
 
-    def update_status(self, status: dict) -> None:
+    def record_motion(self, status: dict) -> None:
+        """Accumulate material. Called on every update, unlike the redraw."""
         self._record_motion(status)
+
+    def update_status(self, status: dict) -> None:
+        if not on_screen(self):
+            return
         toolhead = status.get("toolhead") or {}
         gcode_move = status.get("gcode_move") or {}
         pos = gcode_move.get("gcode_position") or toolhead.get("position")
@@ -275,6 +294,9 @@ class PositionPanel(Vertical):
         if not self._model_dirty:
             return
         self._model_dirty = False
+        self._visible = True
+        self._view_cache_key: tuple | None = None
+        self._view_cache: str = ""
         path = self._model_file()
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
