@@ -82,6 +82,10 @@ class Settings:
         self.webcam_url: str | None = None
         self.presets: dict[str, tuple[int, int]] = dict(DEFAULT_PRESETS)
         self.filament_length: float = 100.0
+        # Draw the temperature plot as a real image where the terminal can
+        # show one. Off means braille everywhere, which is what a terminal
+        # without graphics gets regardless.
+        self.graph_hires: bool = True
         self.dashboard: dict[str, bool] = {
             k: default for k, (_, default) in DASHBOARD_PANELS.items()
         }
@@ -112,6 +116,8 @@ class Settings:
         length = data.get("filament_length")
         if isinstance(length, (int, float)) and length > 0:
             self.filament_length = float(length)
+        if isinstance(data.get("graph_hires"), bool):
+            self.graph_hires = data["graph_hires"]
 
         saved = data.get("dashboard")
         if isinstance(saved, dict):
@@ -130,6 +136,7 @@ class Settings:
                     "webcam_url": self.webcam_url,
                     "presets": {k: list(v) for k, v in self.presets.items()},
                     "filament_length": self.filament_length,
+                    "graph_hires": self.graph_hires,
                     "dashboard": self.dashboard,
                 },
                 indent=2,

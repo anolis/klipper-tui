@@ -9,6 +9,7 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Label, Static
 
+from .. import pixelgraph
 from ..braille import BrailleCanvas
 from ..visibility import on_screen
 
@@ -24,7 +25,8 @@ SERIES = [
 
 
 class TempGraphPanel(Vertical):
-    def __init__(self, compact: bool = False) -> None:
+    def __init__(self, compact: bool = False,
+                 use_hires: bool = True) -> None:
         # The compact variant sits on the dashboard: no controls, fixed window.
         super().__init__(
             id="tempgraph-dash" if compact else "tempgraph-panel",
@@ -41,6 +43,15 @@ class TempGraphPanel(Vertical):
         }
         self._seeded = False
         self._last_append = 0.0
+        # Decided once, at mount: whether the terminal can show a real image.
+        self.hires = use_hires and pixelgraph.graphics_available()
+        self._image_widget = None
+        if self.hires:
+            try:
+                from textual_image.widget import Image as AutoImage
+                self._image_widget = AutoImage(id="tg-image")
+            except Exception:
+                self.hires = False
 
     def compose(self) -> ComposeResult:
         yield Label("Temperature History", classes="panel-title")
@@ -52,7 +63,14 @@ class TempGraphPanel(Vertical):
                 yield Button("Targets", id="tg-targets")
 
         yield Static("", id="tg-legend")
-        yield Static("", id="tg-chart", markup=True)
+        if self.hires:
+            # Only the plot is a picture. The axis stays text so the numbers
+            # are drawn by the terminal's font rather than baked into it.
+            with Horizontal(id="tg-hires"):
+                yield Static("", id="tg-axis", markup=True)
+                yield self._image_widget
+        else:
+            yield Static("", id="tg-chart", markup=True)
 
     def on_mount(self) -> None:
         self._visible = True
@@ -118,15 +136,20 @@ class TempGraphPanel(Vertical):
 
     def _redraw(self) -> None:
         try:
-            chart = self.query_one("#tg-chart", Static)
             legend = self.query_one("#tg-legend", Static)
+            chart = (self.query_one("#tg-axis", Static) if self.hires
+                     else self.query_one("#tg-chart", Static))
         except Exception:
             return
 
         # Size from the chart widget itself, not the panel, or the axis rows
         # below the plot get clipped. The row prefix "999.9 │" is 8 columns.
-        avail_w = chart.size.width or (self.size.width - 6)
-        avail_h = chart.size.height or (self.size.height - 8)
+        sizer = self._image_widget if self.hires else chart
+        avail_w = sizer.size.width or (self.size.width - 6)
+        avail_h = sizer.size.height or (self.size.height - 8)
+        if self.hires:
+            # The axis column is a sibling here, not a prefix on every row.
+            avail_w += 8
         width = max(20, avail_w - 8)
         height = max(4, avail_h if self.compact else avail_h - 2)
 
@@ -139,7 +162,8 @@ class TempGraphPanel(Vertical):
                 series.append((key, label, color, tcolor, temps, targets))
 
         if not series:
-            chart.update("[$text-muted]Waiting for temperature data…[/]")
+            chart.update("[$text-muted]Waiting…[/]" if self.hires
+                         else "[$text-muted]Waiting for temperature data…[/]")
             legend.update("")
             return
 
@@ -153,14 +177,18 @@ class TempGraphPanel(Vertical):
         pad = (hi - lo) * 0.08
         lo, hi = lo - pad, hi + pad
 
-        canvas = BrailleCanvas(width, height)
-        for _, _, color, tcolor, temps, targets in series:
-            if self.show_targets and any(t > 0 for t in targets):
-                self._plot(canvas, targets, lo, hi, tcolor)
-            self._plot(canvas, temps, lo, hi, color)
+        if self.hires:
+            self._draw_image(series, lo, hi, width, height)
+            chart.update("\n".join(self._axis_column(lo, hi, height)))
+        else:
+            canvas = BrailleCanvas(width, height)
+            for _, _, color, tcolor, temps, targets in series:
+                if self.show_targets and any(t > 0 for t in targets):
+                    self._plot(canvas, targets, lo, hi, tcolor)
+                self._plot(canvas, temps, lo, hi, color)
 
-        rows = canvas.render()
-        chart.update("\n".join(self._with_axis(rows, lo, hi, width)))
+            rows = canvas.render()
+            chart.update("\n".join(self._with_axis(rows, lo, hi, width)))
 
         parts = []
         for _, label, color, _, temps, targets in series:
@@ -173,6 +201,45 @@ class TempGraphPanel(Vertical):
         span = min(self.range_minutes, max(len(s[4]) for s in series) // 60 or 1)
         parts.append(f"[$text-muted]last {span}m[/]")
         legend.update("   ".join(parts))
+
+    def _resolve(self, token: str, fallback: str) -> str:
+        """A theme token as a concrete colour Pillow will accept."""
+        name = token.lstrip("$")
+        try:
+            variables = self.app.theme_variables or {}
+            value = variables.get(name)
+            if isinstance(value, str) and value.startswith("#"):
+                return value
+            colour = getattr(self.app.current_theme, name.replace("-", "_"), None)
+            if isinstance(colour, str) and colour.startswith("#"):
+                return colour
+        except Exception:
+            pass
+        return fallback
+
+    def _draw_image(self, series, lo: float, hi: float,
+                    cols: int, rows: int) -> None:
+        width, height = pixelgraph.plot_size(cols, rows)
+        traces = []
+        for _, _, color, tcolor, temps, targets in series:
+            if self.show_targets and any(t > 0 for t in targets):
+                traces.append((targets, self._resolve(tcolor, "#6b2c20")))
+            traces.append((temps, self._resolve(color, "#d1553d")))
+        image = pixelgraph.render(
+            traces, lo, hi, width, height,
+            background=self._resolve("$surface", "#141011"),
+            grid=self._resolve("$panel-lighten-1", "#242021"),
+        )
+        if image is not None and self._image_widget is not None:
+            self._image_widget.image = image
+
+    def _axis_column(self, lo: float, hi: float, rows: int) -> list[str]:
+        """Just the labels; the plot beside them is a picture."""
+        out = []
+        for i in range(rows):
+            value = hi - (hi - lo) * (i / max(1, rows - 1))
+            out.append(f"[$text-muted]{value:6.1f}[/] [$panel-lighten-2]│[/]")
+        return out
 
     def _plot(self, canvas: BrailleCanvas, data: list[float],
               lo: float, hi: float, color: str) -> None:

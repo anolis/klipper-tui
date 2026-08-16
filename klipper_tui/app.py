@@ -162,7 +162,8 @@ class KlipperTUI(App):
             with TabPane("Dashboard", id="dashboard"):
                 yield VerticalScroll(id="dash-panels")
             with TabPane("Graph", id="graph"):
-                yield TempGraphPanel()
+                yield TempGraphPanel(
+                    use_hires=self.settings.graph_hires)
             with TabPane("Console", id="console"):
                 yield ConsolePanel()
             with TabPane("Move", id="move"):
@@ -195,7 +196,8 @@ class KlipperTUI(App):
         if key == "temperature":
             return TemperaturePanel()
         if key == "tempgraph":
-            return TempGraphPanel(compact=True)
+            return TempGraphPanel(
+                compact=True, use_hires=self.settings.graph_hires)
         if key == "tuning":
             return TuningPanel()
         if key == "extruder":

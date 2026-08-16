@@ -161,6 +161,35 @@ values and needs to stay comparable between themes. The console resolves
 colours to concrete hex at write time, because `RichLog` renders Rich markup
 and cannot read `$token` styles.
 
+## Graph resolution
+
+Braille gives a character cell 2x4 dots, which is four times what block
+characters manage and is why the chart is drawn that way. It is still only
+eight dots per cell: a 70x16 plot is 140x64 points for ten minutes of two
+traces, so a slow drift and a fast wobble end up looking much alike.
+
+**On kitty, ghostty or a sixel terminal the plot is drawn as a real image
+instead**, at the terminal's own pixel resolution — roughly ten times as many
+points in each direction, with anti-aliased lines. It turns itself on when the
+terminal answers a graphics query and falls back to braille when it does not,
+so there is nothing to configure to get it.
+
+Only the plot is a picture. The axis labels stay as text, so the numbers are
+drawn by your terminal's font at its own hinting rather than baked into an
+image by a bitmap font.
+
+To force braille everywhere, set this in
+`~/.config/klipper-tui/settings.json`:
+
+```json
+{ "graph_hires": false }
+```
+
+Redrawing costs about 20ms and happens once a second, and the frame is sent
+the same way the webcam is — as raw pixels on kitty, which is cheap locally
+and rude over a slow ssh session, so the same `KLIPPER_TUI_RAW_TGP` switch
+applies.
+
 ## Time remaining
 
 The ETA prefers the slicer's own estimate, taken from the file's metadata, and
