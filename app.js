@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initWebcamSimulator();
   initShortcutsFilter();
   initLiveClock();
+  initLightbox();
 });
 
 /* --------------------------------------------------------------------------
@@ -1126,4 +1127,88 @@ function initToolpathViewer() {
   }, 140);
 
   render();
+}
+
+
+/* --------------------------------------------------------------------------
+   11. Screenshot lightbox
+   --------------------------------------------------------------------------
+   The screenshots are terminal captures, so the detail people want to look at
+   is the text — which is unreadable at grid size. Clicking one opens it as
+   large as the viewport allows, with its caption, and the arrows walk through
+   the rest without going back to the grid.
+   -------------------------------------------------------------------------- */
+function initLightbox() {
+  const box = document.getElementById('lightbox');
+  const image = document.getElementById('lightboxImage');
+  const caption = document.getElementById('lightboxCaption');
+  const closeBtn = document.getElementById('lightboxClose');
+  const prevBtn = document.getElementById('lightboxPrev');
+  const nextBtn = document.getElementById('lightboxNext');
+  if (!box || !image) return;
+
+  const triggers = Array.from(document.querySelectorAll('.shot-open'));
+  if (!triggers.length) return;
+
+  let index = 0;
+  let openedFrom = null;
+
+  function show(at) {
+    index = (at + triggers.length) % triggers.length;
+    const trigger = triggers[index];
+    const source = trigger.querySelector('img');
+    image.src = source.getAttribute('src');
+    image.alt = source.getAttribute('alt') || '';
+    // The caption lives beside the button, in the figure that wraps both.
+    const figcaption = trigger.closest('figure')?.querySelector('figcaption');
+    caption.innerHTML = figcaption ? figcaption.innerHTML : '';
+  }
+
+  function open(at) {
+    openedFrom = triggers[at];
+    show(at);
+    box.hidden = false;
+    // Stop the page behind from scrolling under the overlay.
+    document.body.style.overflow = 'hidden';
+    closeBtn.focus();
+  }
+
+  function close() {
+    box.hidden = true;
+    document.body.style.overflow = '';
+    image.removeAttribute('src');
+    if (openedFrom) openedFrom.focus();
+    openedFrom = null;
+  }
+
+  triggers.forEach((trigger, at) => {
+    trigger.addEventListener('click', () => open(at));
+  });
+
+  closeBtn.addEventListener('click', close);
+  prevBtn.addEventListener('click', () => show(index - 1));
+  nextBtn.addEventListener('click', () => show(index + 1));
+
+  // Clicking the backdrop closes; clicking the picture itself does not.
+  box.addEventListener('click', (event) => {
+    if (event.target === box) close();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (box.hidden) return;
+    if (event.key === 'Escape') {
+      close();
+    } else if (event.key === 'ArrowLeft') {
+      show(index - 1);
+    } else if (event.key === 'ArrowRight') {
+      show(index + 1);
+    } else if (event.key === 'Tab') {
+      // Keep focus inside the dialog while it is open.
+      const stops = [closeBtn, prevBtn, nextBtn];
+      const at = stops.indexOf(document.activeElement);
+      const step = event.shiftKey ? -1 : 1;
+      stops[(Math.max(0, at) + step + stops.length) % stops.length].focus();
+      event.preventDefault();
+    }
+  });
 }

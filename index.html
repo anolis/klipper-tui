@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="styles.css?v=7e7aa3a9">
+  <link rel="stylesheet" href="styles.css?v=ef90b07e">
 </head>
 <body>
 
@@ -163,35 +163,35 @@
       </div>
       <div class="shots-grid">
         <figure class="shot-card">
-          <img src="docs/screenshots/dashboard.svg" alt="Dashboard" loading="lazy">
+          <button type="button" class="shot-open" aria-label="Enlarge the dashboard screenshot"><img src="docs/screenshots/dashboard.svg" alt="Dashboard" loading="lazy"></button>
           <figcaption><strong>Dashboard</strong> Status, temperatures, history and speed and flow, packed to the width of the terminal.</figcaption>
         </figure>
         <figure class="shot-card">
-          <img src="docs/screenshots/toolpath.svg" alt="Toolpath" loading="lazy">
+          <button type="button" class="shot-open" aria-label="Enlarge the toolpath screenshot"><img src="docs/screenshots/toolpath.svg" alt="Toolpath" loading="lazy"></button>
           <figcaption><strong>Toolpath</strong> The current layer as it is drawn — printed moves ahead of the nozzle in a different colour.</figcaption>
         </figure>
         <figure class="shot-card">
-          <img src="docs/screenshots/mesh.svg" alt="Bed mesh" loading="lazy">
+          <button type="button" class="shot-open" aria-label="Enlarge the bed mesh screenshot"><img src="docs/screenshots/mesh.svg" alt="Bed mesh" loading="lazy"></button>
           <figcaption><strong>Bed mesh</strong> The probed heightmap beside its controls, filling in point by point while probing.</figcaption>
         </figure>
         <figure class="shot-card">
-          <img src="docs/screenshots/move.svg" alt="Move" loading="lazy">
+          <button type="button" class="shot-open" aria-label="Enlarge the move screenshot"><img src="docs/screenshots/move.svg" alt="Move" loading="lazy"></button>
           <figcaption><strong>Move</strong> Homing, a jog cross, and live Z offset you can save into the probe.</figcaption>
         </figure>
         <figure class="shot-card">
-          <img src="docs/screenshots/position.svg" alt="Toolhead position" loading="lazy">
+          <button type="button" class="shot-open" aria-label="Enlarge the toolhead position screenshot"><img src="docs/screenshots/position.svg" alt="Toolhead position" loading="lazy"></button>
           <figcaption><strong>Toolhead position</strong> The build volume and the loaded model on the bed, rotatable.</figcaption>
         </figure>
         <figure class="shot-card">
-          <img src="docs/screenshots/graph.svg" alt="Temperature history" loading="lazy">
+          <button type="button" class="shot-open" aria-label="Enlarge the temperature history screenshot"><img src="docs/screenshots/graph.svg" alt="Temperature history" loading="lazy"></button>
           <figcaption><strong>Temperature history</strong> Hotend and bed in braille, at four times the vertical resolution of block characters. Flat, because the print is holding temperature — which is the point.</figcaption>
         </figure>
         <figure class="shot-card">
-          <img src="docs/screenshots/files.svg" alt="Files" loading="lazy">
+          <button type="button" class="shot-open" aria-label="Enlarge the files screenshot"><img src="docs/screenshots/files.svg" alt="Files" loading="lazy"></button>
           <figcaption><strong>Files</strong> Sorted newest first, with slicer metadata. Double-click a row to print it.</figcaption>
         </figure>
         <figure class="shot-card">
-          <img src="docs/screenshots/console.svg" alt="Console" loading="lazy">
+          <button type="button" class="shot-open" aria-label="Enlarge the console screenshot"><img src="docs/screenshots/console.svg" alt="Console" loading="lazy"></button>
           <figcaption><strong>Console</strong> Real commands, real replies, and Tab completing <code>BED_MESH_</code> against what the printer reports.</figcaption>
         </figure>
       </div>
@@ -1086,7 +1086,23 @@
     </div>
   </footer>
 
+
+  <!-- Screenshot lightbox -->
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true"
+       aria-label="Screenshot" hidden>
+    <button type="button" class="lightbox-close" id="lightboxClose"
+            aria-label="Close">&times;</button>
+    <button type="button" class="lightbox-step lightbox-prev" id="lightboxPrev"
+            aria-label="Previous screenshot">&lsaquo;</button>
+    <figure class="lightbox-figure">
+      <img id="lightboxImage" alt="">
+      <figcaption id="lightboxCaption"></figcaption>
+    </figure>
+    <button type="button" class="lightbox-step lightbox-next" id="lightboxNext"
+            aria-label="Next screenshot">&rsaquo;</button>
+  </div>
+
   <!-- Scripts -->
-  <script src="app.js?v=42013124"></script>
+  <script src="app.js?v=4f2abfef"></script>
 </body>
 </html>

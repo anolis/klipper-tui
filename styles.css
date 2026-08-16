@@ -2532,3 +2532,114 @@ kbd {
 .terminal-frame .held {
   color: var(--warning);
 }
+
+/* --------------------------------------------------------------------------
+   Screenshot lightbox
+   -------------------------------------------------------------------------- */
+
+.shot-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+
+.shot-open:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: clamp(1rem, 4vw, 3rem);
+  background: rgba(0, 0, 0, 0.92);
+  backdrop-filter: blur(3px);
+}
+
+.lightbox[hidden] {
+  display: none;
+}
+
+.lightbox-figure {
+  margin: 0;
+  max-width: 100%;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  align-items: center;
+}
+
+.lightbox-figure img {
+  max-width: 100%;
+  /* Leave room for the caption below it. */
+  max-height: calc(100vh - 9rem);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+}
+
+.lightbox-figure figcaption {
+  max-width: 60ch;
+  text-align: center;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+.lightbox-figure figcaption strong {
+  color: var(--text-main);
+}
+
+.lightbox-close,
+.lightbox-step {
+  flex: 0 0 auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-main);
+  cursor: pointer;
+  line-height: 1;
+  transition: border-color var(--transition-fast),
+              background var(--transition-fast);
+}
+
+.lightbox-close:hover,
+.lightbox-step:hover,
+.lightbox-close:focus-visible,
+.lightbox-step:focus-visible {
+  border-color: var(--border-active);
+  background: var(--bg-card-hover);
+}
+
+.lightbox-close {
+  position: absolute;
+  top: clamp(0.75rem, 2vw, 1.5rem);
+  right: clamp(0.75rem, 2vw, 1.5rem);
+  width: 2.5rem;
+  height: 2.5rem;
+  font-size: 1.5rem;
+}
+
+.lightbox-step {
+  width: 2.75rem;
+  height: 4rem;
+  font-size: 2rem;
+}
+
+@media (max-width: 700px) {
+  .lightbox-step {
+    display: none;      /* swipe room is scarce; the caption matters more */
+  }
+  .lightbox-figure img {
+    max-height: calc(100vh - 11rem);
+  }
+}
