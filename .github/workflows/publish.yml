@@ -32,3 +32,8 @@ jobs:
 
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Publishing a version already on PyPI is not an error worth failing
+          # for: a release created after a manual dispatch would otherwise go
+          # red for a build that is already out.
+          skip-existing: true
