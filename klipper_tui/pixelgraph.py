@@ -34,6 +34,12 @@ FALLBACK_CELL = (9, 19)
 # Keep a redraw well inside a frame even on a large panel.
 MAX_PIXELS = 1600 * 900
 
+# Panels that redraw as the machine moves send a new picture to the terminal
+# a couple of times a second, so their frames are budgeted more tightly. At
+# full panel size the toolpath alone was pushing about 6MB a second down the
+# pipe; this is still five times braille's resolution on each axis.
+LIVE_PIXELS = 520 * 1000
+
 
 def graphics_available(renderer: str = "auto") -> bool:
     """Can this terminal show an actual image?
@@ -156,14 +162,15 @@ def cell_size() -> tuple[int, int]:
     return FALLBACK_CELL
 
 
-def plot_size(cols: int, rows: int) -> tuple[int, int]:
+def plot_size(cols: int, rows: int,
+              budget: int = MAX_PIXELS) -> tuple[int, int]:
     """Pixel size for a plot that has to sit in cols x rows character cells."""
     cell_w, cell_h = cell_size()
     width = max(16, cols * cell_w)
     height = max(16, rows * cell_h)
     # A very wide panel on a hidpi terminal can ask for more pixels than is
     # worth drawing at a frame a second; scale the pair down together.
-    excess = (width * height) / MAX_PIXELS
+    excess = (width * height) / budget
     if excess > 1:
         shrink = excess ** 0.5
         width, height = int(width / shrink), int(height / shrink)

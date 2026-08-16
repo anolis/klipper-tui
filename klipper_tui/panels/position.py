@@ -468,7 +468,9 @@ class PositionPanel(Vertical):
         """
         if not self.hires:
             return BrailleCanvas(width, height)
-        pixels_w, pixels_h = pixelgraph.plot_size(width, height)
+        # Budgeted rather than full size: the volume redraws as the toolhead moves.
+        pixels_w, pixels_h = pixelgraph.plot_size(
+            width, height, pixelgraph.LIVE_PIXELS)
         if self.spinning:
             pixels_w, pixels_h = max(16, pixels_w // 2), max(16, pixels_h // 2)
         return pixelgraph.PixelCanvas(

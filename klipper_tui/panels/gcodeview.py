@@ -214,10 +214,19 @@ class GcodeViewPanel(Vertical):
         width = max(20, (view.size.width or self.size.width) - 2)
         height = max(8, (view.size.height or 18) - 1)
 
-        # Only the printed fraction changes moment to moment; redraw when it
-        # advances enough to matter, not on every tick.
-        key = (self.layer_index, width, height, self.file_position // 4096,
-               self.frame, self.zoom, self.pan[0], self.pan[1])
+        # What moves between ticks is the nozzle and the boundary between what
+        # has been laid down and what has not, so both are in the key.
+        #
+        # File position alone was quantised to 4096 bytes, which is a sensible
+        # amount of gcode on a fast infill pass and twenty seconds of it on
+        # fine detail — the view sat still through exactly the parts worth
+        # watching. The nozzle is rounded to half a millimetre, which is under
+        # a pixel at any sane zoom, so this redraws when the picture would
+        # actually differ rather than on a byte count.
+        head = (round(self.head[0] * 2), round(self.head[1] * 2)) \
+            if self.head else None
+        key = (self.layer_index, width, height, self.file_position // 512,
+               head, self.frame, self.zoom, self.pan[0], self.pan[1])
         if key != self._cache_key:
             self._cache_key = key
             self._cache = self._render_toolpath(width, height)
@@ -246,7 +255,9 @@ class GcodeViewPanel(Vertical):
     def _make_canvas(self, width: int, height: int):
         if not self.hires:
             return BrailleCanvas(width, height)
-        pixels_w, pixels_h = pixelgraph.plot_size(width, height)
+        # Budgeted rather than full size: the layer redraws as the nozzle moves.
+        pixels_w, pixels_h = pixelgraph.plot_size(
+            width, height, pixelgraph.LIVE_PIXELS)
         return pixelgraph.PixelCanvas(
             pixels_w, pixels_h,
             background=self._resolve("$surface"),
