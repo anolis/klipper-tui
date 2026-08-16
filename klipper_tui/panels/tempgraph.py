@@ -25,6 +25,11 @@ SERIES = [
 
 
 class TempGraphPanel(Vertical):
+    # Defaults at class level: the geometry tests build these with __new__,
+    # and braille is the mode that needs nothing from the terminal.
+    hires = False
+    _image_widget = None
+
     def __init__(self, compact: bool = False, use_hires: bool = True,
                  renderer: str = "auto") -> None:
         # The compact variant sits on the dashboard: no controls, fixed window.
@@ -203,19 +208,7 @@ class TempGraphPanel(Vertical):
         legend.update("   ".join(parts))
 
     def _resolve(self, token: str, fallback: str) -> str:
-        """A theme token as a concrete colour Pillow will accept."""
-        name = token.lstrip("$")
-        try:
-            variables = self.app.theme_variables or {}
-            value = variables.get(name)
-            if isinstance(value, str) and value.startswith("#"):
-                return value
-            colour = getattr(self.app.current_theme, name.replace("-", "_"), None)
-            if isinstance(colour, str) and colour.startswith("#"):
-                return colour
-        except Exception:
-            pass
-        return fallback
+        return pixelgraph.resolve(self.app, token, fallback)
 
     def _draw_image(self, series, lo: float, hi: float,
                     cols: int, rows: int) -> None:

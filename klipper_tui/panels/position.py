@@ -13,6 +13,7 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Label, Static
 
+from .. import pixelgraph
 from ..braille import BrailleCanvas
 from ..visibility import on_screen
 from ..settings import state_path
@@ -50,8 +51,24 @@ EDGES = [
 
 
 class PositionPanel(Vertical):
-    def __init__(self) -> None:
+    # Defaults at class level: the geometry tests build these with __new__,
+    # and braille is the mode that needs nothing from the terminal.
+    hires = False
+    _image_widget = None
+
+    def __init__(self, use_hires: bool = True,
+                 renderer: str = "auto") -> None:
         super().__init__(id="position-panel")
+        # The volume is nothing but diagonals and the model is a few
+        # thousand shaded points, both of which braille handles badly.
+        self.hires = use_hires and pixelgraph.graphics_available(renderer)
+        self._image_widget = None
+        if self.hires:
+            try:
+                from textual_image.widget import Image as AutoImage
+                self._image_widget = AutoImage(id="ps-image")
+            except Exception:
+                self.hires = False
         self.yaw = 0.6
         self.tilt = 0.5
         self.zoom = 1.0
@@ -102,7 +119,10 @@ class PositionPanel(Vertical):
             yield Button("Clear", id="ps-model-clear", classes="-danger")
 
         yield Static("", id="ps-readout")
-        yield Static("", id="ps-view", markup=True)
+        if self.hires:
+            yield self._image_widget
+        else:
+            yield Static("", id="ps-view", markup=True)
 
     def on_mount(self) -> None:
         # Redrawing a rotating model is the most expensive thing here, so it
@@ -431,16 +451,38 @@ class PositionPanel(Vertical):
 
     # -- drawing ---------------------------------------------------------------
 
+    def _make_canvas(self, width: int, height: int):
+        """Full pixels when still, a quarter of them while spinning.
+
+        A static view is redrawn only when the toolhead moves, so it can
+        afford every pixel the terminal has. Spinning redraws six times a
+        second, and at full size that is a quarter of a core and several
+        megabytes a second down the pipe. Halving each axis is a quarter of
+        the pixels, and a frame that is on screen for 150ms does not need
+        them.
+        """
+        if not self.hires:
+            return BrailleCanvas(width, height)
+        pixels_w, pixels_h = pixelgraph.plot_size(width, height)
+        if self.spinning:
+            pixels_w, pixels_h = max(16, pixels_w // 2), max(16, pixels_h // 2)
+        return pixelgraph.PixelCanvas(
+            pixels_w, pixels_h,
+            background=pixelgraph.resolve(self.app, "$surface"),
+            resolve=lambda token: pixelgraph.resolve(self.app, token),
+            stroke=1 if self.spinning else 2)
+
     def _redraw(self) -> None:
         try:
-            view = self.query_one("#ps-view", Static)
             readout = self.query_one("#ps-readout", Static)
+            view = self._image_widget if self.hires \
+                else self.query_one("#ps-view", Static)
         except Exception:
             return
 
         width = max(20, (view.size.width or self.size.width) - 2)
         height = max(8, (view.size.height or 16) - 1)
-        canvas = BrailleCanvas(width, height)
+        canvas = self._make_canvas(width, height)
         cw, ch = canvas.sub_width, canvas.sub_height
 
         fit = self._fit(cw, ch)
@@ -478,12 +520,16 @@ class PositionPanel(Vertical):
                     *self._project(u, 1, 0, fit), C_DROP)
 
         # Toolhead marker, drawn last so it wins any shared cell.
-        for dx in range(-2, 3):
+        arm = pixelgraph.marker_arm(canvas)
+        for dx in range(-arm, arm + 1):
             canvas.set(head[0] + dx, head[1], C_HEAD)
-        for dy in range(-2, 3):
+        for dy in range(-arm, arm + 1):
             canvas.set(head[0], head[1] + dy, C_HEAD)
 
-        view.update("\n".join(canvas.render()))
+        if self.hires:
+            view.image = canvas.image
+        else:
+            view.update("\n".join(canvas.render()))
 
         homed = " ".join(
             f"[$success]{a.upper()}[/]" if a in self.homed

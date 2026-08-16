@@ -632,3 +632,10 @@ OfflineScreen {
     width: 1fr;
     height: 100%;
 }
+
+/* Hi-res variants of the drawing panels. The image fills whatever the panel
+   leaves after its controls, exactly as the Static it replaces did. */
+#gv-image, #ps-image {
+    width: 100%;
+    height: 1fr;
+}

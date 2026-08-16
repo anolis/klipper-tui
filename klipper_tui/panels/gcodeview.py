@@ -7,6 +7,7 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Label, Static
 
 from ..braille import BrailleCanvas
+from .. import pixelgraph
 from ..visibility import on_screen
 from ..gcode import Layer, Toolpath, layer_for_position
 
@@ -16,8 +17,24 @@ C_HEAD = "$vol-head"   # where the nozzle is
 
 
 class GcodeViewPanel(Vertical):
-    def __init__(self) -> None:
+    # Defaults at class level: the geometry tests build these with __new__,
+    # and braille is the mode that needs nothing from the terminal.
+    hires = False
+    _image_widget = None
+
+    def __init__(self, use_hires: bool = True,
+                 renderer: str = "auto") -> None:
         super().__init__(id="gcodeview-panel", classes="panel")
+        # A layer is dense curves on the diagonal, which is the worst case for
+        # braille. Where the terminal can show an image, draw one.
+        self.hires = use_hires and pixelgraph.graphics_available(renderer)
+        self._image_widget = None
+        if self.hires:
+            try:
+                from textual_image.widget import Image as AutoImage
+                self._image_widget = AutoImage(id="gv-image")
+            except Exception:
+                self.hires = False
         self.gcode_layers: list[Layer] = []
         self.toolpath: Toolpath | None = None
         self.layer_index: int | None = None
@@ -50,7 +67,10 @@ class GcodeViewPanel(Vertical):
             yield Button("↑", id="gv-pan-up")
             yield Button("↓", id="gv-pan-down")
         yield Static("", id="gv-info", classes="dim")
-        yield Static("", id="gv-view", markup=True)
+        if self.hires:
+            yield self._image_widget
+        else:
+            yield Static("", id="gv-view", markup=True)
 
     def on_mount(self) -> None:
         self._visible = True
@@ -180,13 +200,15 @@ class GcodeViewPanel(Vertical):
     def _redraw(self) -> None:
         try:
             info = self.query_one("#gv-info", Static)
-            view = self.query_one("#gv-view", Static)
+            view = self._image_widget if self.hires \
+                else self.query_one("#gv-view", Static)
         except Exception:
             return
 
         if not self.toolpath or not self.frame:
             info.update(f"[$text-muted]{self.status_text or 'Loading…'}[/]")
-            view.update("")
+            if not self.hires:
+                view.update("")
             return
 
         width = max(20, (view.size.width or self.size.width) - 2)
@@ -199,7 +221,12 @@ class GcodeViewPanel(Vertical):
         if key != self._cache_key:
             self._cache_key = key
             self._cache = self._render_toolpath(width, height)
-        view.update("\n".join(self._cache))
+        if self.hires:
+            # Same cache: an unchanged frame is not worth re-transmitting.
+            if self._cache is not None:
+                view.image = self._cache
+        else:
+            view.update("\n".join(self._cache))
 
         layer = self.gcode_layers[self.layer_index] if self.layer_index is not None \
             else None
@@ -215,8 +242,21 @@ class GcodeViewPanel(Vertical):
             f"   [$text-muted]zoom[/] {self.zoom:.1f}×"
         )
 
-    def _render_toolpath(self, width: int, height: int) -> list[str]:
-        canvas = BrailleCanvas(width, height)
+    def _resolve(self, token: str) -> str:
+        return pixelgraph.resolve(self.app, token)
+
+    def _make_canvas(self, width: int, height: int):
+        if not self.hires:
+            return BrailleCanvas(width, height)
+        pixels_w, pixels_h = pixelgraph.plot_size(width, height)
+        return pixelgraph.PixelCanvas(
+            pixels_w, pixels_h,
+            background=self._resolve("$surface"),
+            resolve=self._resolve,
+            stroke=2)
+
+    def _render_toolpath(self, width: int, height: int):
+        canvas = self._make_canvas(width, height)
         min_x, min_y, max_x, max_y = self.frame
         span_x = max(1e-6, max_x - min_x)
         span_y = max(1e-6, max_y - min_y)
@@ -243,9 +283,10 @@ class GcodeViewPanel(Vertical):
 
         if self.head:
             hx, hy = place(*self.head)
-            for dx in range(-2, 3):
+            arm = pixelgraph.marker_arm(canvas)
+            for dx in range(-arm, arm + 1):
                 canvas.set(hx + dx, hy, C_HEAD)
-            for dy in range(-2, 3):
+            for dy in range(-arm, arm + 1):
                 canvas.set(hx, hy + dy, C_HEAD)
 
-        return canvas.render()
+        return canvas.image if self.hires else canvas.render()

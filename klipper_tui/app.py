@@ -173,8 +173,12 @@ class KlipperTUI(App):
             with TabPane("Move", id="move"):
                 with VerticalScroll():
                     yield ToolheadPanel()
-                    yield PositionPanel()
-                    yield GcodeViewPanel()
+                    yield PositionPanel(
+                        use_hires=self.settings.graph_hires,
+                        renderer=self.renderer)
+                    yield GcodeViewPanel(
+                        use_hires=self.settings.graph_hires,
+                        renderer=self.renderer)
             with TabPane("Files", id="files"):
                 yield FilesPanel()
             with TabPane("Mesh", id="mesh"):
@@ -212,9 +216,13 @@ class KlipperTUI(App):
         if key == "bedmesh":
             return BedMeshPanel()
         if key == "position":
-            return PositionPanel()
+            return PositionPanel(
+                use_hires=self.settings.graph_hires,
+                renderer=self.renderer)
         if key == "gcodeview":
-            return GcodeViewPanel()
+            return GcodeViewPanel(
+                use_hires=self.settings.graph_hires,
+                renderer=self.renderer)
         if key == "machine":
             return MachinePanel()
         if key == "fans":

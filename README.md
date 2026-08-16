@@ -161,22 +161,36 @@ values and needs to stay comparable between themes. The console resolves
 colours to concrete hex at write time, because `RichLog` renders Rich markup
 and cannot read `$token` styles.
 
-## Graph resolution
+## Drawing resolution
 
 Braille gives a character cell 2x4 dots, which is four times what block
 characters manage and is why the chart is drawn that way. It is still only
 eight dots per cell: a 70x16 plot is 140x64 points for ten minutes of two
 traces, so a slow drift and a fast wobble end up looking much alike.
 
-**On kitty, ghostty or a sixel terminal the plot is drawn as a real image
-instead**, at the terminal's own pixel resolution — roughly ten times as many
-points in each direction, with anti-aliased lines. It turns itself on when the
+**On kitty, ghostty or a sixel terminal the drawing panels are drawn as real
+images instead**, at the terminal's own pixel resolution — around twenty-five
+times as many points, with anti-aliased lines. It turns itself on when the
 terminal answers a graphics query and falls back to braille when it does not,
 so there is nothing to configure to get it.
 
-Only the plot is a picture. The axis labels stay as text, so the numbers are
-drawn by your terminal's font at its own hinting rather than baked into an
-image by a bitmap font.
+Three panels use it:
+
+| | why it helps |
+| --- | --- |
+| **Temperature history** | a slow drift and a fast wobble stop looking alike |
+| **Toolpath** | a layer is dense curves on the diagonal, braille's worst case |
+| **Toolhead position** | the volume is all diagonals, and the model's depth shading is per-point rather than per-cell |
+
+Only the drawing is a picture. The graph's axis labels stay as text, so the
+numbers are drawn by your terminal's font at its own hinting rather than baked
+into an image by a bitmap font.
+
+**The 3D view drops to a quarter of the pixels while it is spinning.** Still,
+it redraws only when the toolhead moves and can afford everything the terminal
+has. Spinning, it redraws six times a second, and a frame that is on screen
+for 150ms does not need full resolution — halving each axis quarters both the
+work and the bytes going down the pipe.
 
 Whether the terminal can show an image is decided once, by `textual-image`,
 before the interface starts — it cannot be asked afterwards, because Textual
@@ -192,9 +206,12 @@ To force braille everywhere, set this in
 { "graph_hires": false }
 ```
 
+(The key predates the toolpath and 3D view using this; it governs all three.)
+
 or `KLIPPER_TUI_GRAPH_HIRES=0` for a single run.
 
-Redrawing costs about 20ms and happens once a second, and the frame is sent
+Redrawing costs a few milliseconds a frame — 8ms for a dense toolpath layer,
+under 2ms for the volume, and the graph once a second — and the frame is sent
 the same way the webcam is — as raw pixels on kitty, which is cheap locally
 and rude over a slow ssh session, so the same `KLIPPER_TUI_RAW_TGP` switch
 applies.

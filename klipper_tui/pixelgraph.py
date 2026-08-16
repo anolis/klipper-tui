@@ -84,6 +84,49 @@ def renderer_name() -> str:
         return "unknown"
 
 
+# Enough of the palette to draw with if the theme cannot be read yet.
+FALLBACK_COLOURS = {
+    "hot": "#d1553d", "hot-dim": "#6b2c20",
+    "bed": "#7b6f9c", "bed-dim": "#3d3652",
+    "vol-frame": "#a32638", "vol-floor": "#5c4a52",
+    "vol-head": "#e0a13c", "vol-drop": "#c4485a",
+    "surface": "#141011", "background": "#0b0809",
+    "panel": "#1c1618", "panel-lighten-1": "#2b2527",
+    "foreground": "#ddcfd2", "text-muted": "#9e8d91",
+}
+
+
+def resolve(app, token: str, fallback: str = "#ffffff") -> str:
+    """A theme token like "$hot" as a concrete colour Pillow will accept.
+
+    Textual resolves these itself when it renders markup, but Pillow has never
+    heard of them, so anything drawn into an image has to look them up first.
+    """
+    name = token.lstrip("$")
+    try:
+        value = (app.theme_variables or {}).get(name)
+        if isinstance(value, str) and value.startswith("#"):
+            return value
+    except Exception:
+        pass
+    try:
+        value = getattr(app.current_theme, name.replace("-", "_"), None)
+        if isinstance(value, str) and value.startswith("#"):
+            return value
+    except Exception:
+        pass
+    return FALLBACK_COLOURS.get(name, fallback)
+
+
+def marker_arm(canvas) -> int:
+    """Half-length of the nozzle cross, in subpixels of whatever canvas.
+
+    Five subpixels reads well on braille's 160-wide grid and disappears on a
+    1600-pixel one, so scale it instead of hardcoding it.
+    """
+    return max(2, canvas.sub_width // 110)
+
+
 def cell_size() -> tuple[int, int]:
     try:
         from textual_image._terminal import get_cell_size
@@ -149,3 +192,54 @@ def render(series: Iterable[tuple[Sequence[float], str]],
             draw.line(points, fill=colour, width=scale + 1, joint="curve")
 
     return canvas.resize((width, height), Image.LANCZOS)
+
+
+class PixelCanvas:
+    """A drawing surface with BrailleCanvas's interface, backed by real pixels.
+
+    The panels that draw the toolpath and the build volume already work in
+    "subpixels" — braille's 2x4 grid per cell. Handing them one of these
+    instead makes every subpixel an actual pixel, so the projection maths, the
+    framing and the draw order all carry over untouched and only the output
+    differs.
+
+    Colours arrive as theme tokens like "$hot", because that is what the
+    braille renderer needs. A resolver turns them into something Pillow will
+    take, and the answers are cached: a frame asks for the same handful of
+    colours thousands of times.
+    """
+
+    def __init__(self, width: int, height: int, background: str,
+                 resolve, stroke: int = 2) -> None:
+        self.sub_width = width
+        self.sub_height = height
+        self.stroke = max(1, stroke)
+        self._resolve = resolve
+        self._cache: dict[str, object] = {}
+        self._image = Image.new("RGB", (width, height), background)
+        self._draw = ImageDraw.Draw(self._image)
+
+    def _colour(self, token: str):
+        cached = self._cache.get(token)
+        if cached is None:
+            cached = self._resolve(token)
+            self._cache[token] = cached
+        return cached
+
+    def set(self, sx: int, sy: int, color: str) -> None:
+        if not (0 <= sx < self.sub_width and 0 <= sy < self.sub_height):
+            return
+        half = self.stroke // 2
+        self._draw.rectangle(
+            [sx - half, sy - half, sx - half + self.stroke - 1,
+             sy - half + self.stroke - 1],
+            fill=self._colour(color))
+
+    def line(self, sx0: int, sy0: int, sx1: int, sy1: int,
+             color: str) -> None:
+        self._draw.line([(sx0, sy0), (sx1, sy1)], fill=self._colour(color),
+                        width=self.stroke)
+
+    @property
+    def image(self):
+        return self._image
