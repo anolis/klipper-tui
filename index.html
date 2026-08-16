@@ -35,7 +35,7 @@
       <a href="#" class="brand" id="brandLogo">
         <span class="brand-badge">TUI</span>
         <span class="brand-name">klipper<span class="brand-accent">-tui</span></span>
-        <span class="version-tag">v0.12.0</span>
+        <span class="version-tag">v0.13.0</span>
       </a>
 
       <nav class="nav-links" id="navLinks" aria-label="Main Navigation">
@@ -120,6 +120,12 @@
       </div>
 
       <!-- Hero Metrics -->
+      <p class="hero-note">
+        Runs in any terminal. <strong>Best in <a href="https://sw.kovidgoyal.net/kitty/" target="_blank" rel="noopener noreferrer">kitty</a></strong>
+        — the webcam and the Klipper mark come through as real images rather than
+        coloured blocks, and frames cost about 2ms each instead of 38.
+      </p>
+
       <div class="hero-stats-row">
         <div class="stat-item">
           <span class="stat-value">8</span>
@@ -259,90 +265,95 @@
           <!-- 1. DASHBOARD VIEW -->
           <div class="tui-view-panel active" id="viewDashboard">
             <div class="dashboard-grid">
-              
-              <!-- State & Progress Panel -->
+
               <div class="tui-card">
-                <div class="card-header">
-                  <span class="card-title">Status</span>
-                  <span class="badge-success">PRINTING</span>
-                </div>
+                <div class="card-title">Status</div>
                 <div class="card-body">
-                  <div class="job-meta-row">
-                    <span class="dim">File</span>
-                    <span class="highlight bold">ice_dragon_6h28m_0.20mm_215C_PLA.gcode</span>
-                  </div>
-                  <div class="progress-bar-container">
-                    <div class="progress-bar-fill" style="width: 68%;"></div>
-                  </div>
-                  <div class="progress-stats-row">
-                    <span><strong>68%</strong></span>
-                    <span>ETA <strong>07:41</strong> (02:04 left)</span>
-                  </div>
-                  <div class="stats-mini-grid">
-                    <div><span class="dim">Elapsed</span> 04:24:15</div>
-                    <div><span class="dim">Pos</span> X 168.7 Y 162.0 Z 42.4</div>
-                    <div><span class="dim">Homed</span> X Y Z</div>
-                    <div><span class="dim">Speed</span> 150% &nbsp; <span class="dim">Flow</span> 100%</div>
+                  <div class="tui-line"><span class="dim">State</span> <span class="state-live">PRINTING</span></div>
+                  <div class="tui-line"><span class="dim">File</span>&nbsp;&nbsp; ice_dragon_fixed_p1_6h28m_0.20mm_215C_PLA.gcode</div>
+                  <div class="tui-line"><span class="bar"><span class="bar-done">██</span><span class="bar-todo">░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░</span></span>  6.6%</div>
+                  <div class="tui-line"><span class="dim">Elapsed</span> 00:54:29 &nbsp; <span class="dim">ETA</span> 05:33:22 (08:36) &nbsp; <span class="dim">slicer</span> 6.6%</div>
+                  <div class="tui-line"><span class="dim">Pos</span>&nbsp;&nbsp;&nbsp; <span class="dim">X</span> 168.73 &nbsp;<span class="dim">Y</span> 161.96 &nbsp;<span class="dim">Z</span> 2.020</div>
+                  <div class="tui-line"><span class="dim">Homed</span> <span class="ok">X Y Z</span> &nbsp; <span class="dim">Speed</span> 150% &nbsp; <span class="dim">Flow</span> 100%</div>
+                  <div class="tui-btn-row">
+                    <button type="button" class="tui-btn" id="btnDashPause">Pause</button>
+                    <button type="button" class="tui-btn" disabled>Resume</button>
+                    <button type="button" class="tui-btn tui-btn-danger" id="btnDashEmergency">Cancel</button>
+                    <button type="button" class="tui-btn tui-btn-danger">Restart</button>
                   </div>
                 </div>
               </div>
 
-              <!-- Toolhead Coordinates -->
               <div class="tui-card">
-                <div class="card-header">
-                  <span class="card-title">Motion limits</span>
-                  <span class="dim">from printer.cfg</span>
-                </div>
+                <div class="card-title">Temperature</div>
                 <div class="card-body">
-                  <div class="coord-display-grid">
-                    <div class="coord-cell"><span class="axis">Velocity</span> <span class="coord-val">500</span> mm/s</div>
-                    <div class="coord-cell"><span class="axis">Accel</span> <span class="coord-val">2000</span> mm/s²</div>
-                    <div class="coord-cell"><span class="axis">SCV</span> <span class="coord-val">5.0</span> mm/s</div>
-                    <div class="coord-cell"><span class="axis">Cruise</span> <span class="coord-val">50</span> %</div>
+                  <div class="tui-line"><span class="dim">Hotend</span> <strong id="dashExtruderTemp">215.0</strong>°C <span class="dim">/</span> <span class="target">215°C</span> &nbsp; <span class="dim">power</span> 56%</div>
+                  <div class="tui-line"><span class="dim">Bed</span>&nbsp;&nbsp;&nbsp; <strong id="dashBedTemp">65.0</strong>°C <span class="dim">/</span> <span class="target">65°C</span> &nbsp; <span class="dim">power</span> 0%</div>
+                  <div class="tui-line"><span class="dim">Part fan</span> 0%</div>
+                  <div class="tui-btn-row">
+                    <span class="tui-input">hotend °C</span>
+                    <span class="tui-input">bed °C</span>
+                    <button type="button" class="tui-btn tui-btn-primary">Set</button>
                   </div>
-                  <div class="quick-jog-row">
-                    <button type="button" class="tui-btn tui-btn-sm" id="btnDashPause">Pause</button>
-                    <button type="button" class="tui-btn tui-btn-sm" disabled>Resume</button>
-                    <button type="button" class="tui-btn tui-btn-sm tui-btn-danger" id="btnDashEmergency">Cancel</button>
-                    <button type="button" class="tui-btn tui-btn-sm tui-btn-danger">Restart</button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Temperature Sensors -->
-              <div class="tui-card">
-                <div class="card-header">
-                  <span class="card-title">Temperature</span>
-                  <span class="badge-success">at target</span>
-                </div>
-                <div class="card-body">
-                  <div class="temp-readout-row">
-                    <div class="temp-item">
-                      <span class="temp-name"><span class="dot-hot"></span> Hotend</span>
-                      <span class="temp-nums"><strong id="dashExtruderTemp">215.0</strong>°C / 215°C &nbsp;<span class="dim">power 56%</span></span>
-                      <div class="temp-bar"><div class="temp-bar-fill hot-fill" style="width: 71%;"></div></div>
-                    </div>
-                    <div class="temp-item">
-                      <span class="temp-name"><span class="dot-bed"></span> Bed</span>
-                      <span class="temp-nums"><strong id="dashBedTemp">65.0</strong>°C / 65°C &nbsp;<span class="dim">power 4%</span></span>
-                      <div class="temp-bar"><div class="temp-bar-fill bed-fill" style="width: 50%;"></div></div>
-                    </div>
+                  <div class="tui-btn-row">
+                    <button type="button" class="tui-btn" id="presetPla">PLA</button>
+                    <button type="button" class="tui-btn" id="presetPetg">PETG</button>
+                    <button type="button" class="tui-btn" id="presetAbs">ABS</button>
+                    <button type="button" class="tui-btn">TPU</button>
+                    <button type="button" class="tui-btn tui-btn-primary" id="presetCooldown">Cool</button>
                   </div>
                 </div>
               </div>
 
-              <!-- Material Presets -->
               <div class="tui-card">
-                <div class="card-header">
-                  <span class="card-title">Presets</span>
-                  <span class="dim">editable in Settings</span>
-                </div>
+                <div class="card-title">Speed &amp; Flow</div>
                 <div class="card-body">
-                  <div class="presets-btn-grid">
-                    <button type="button" class="tui-btn active-preset" id="presetPla">PLA <small>200 / 60</small></button>
-                    <button type="button" class="tui-btn" id="presetPetg">PETG <small>240 / 80</small></button>
-                    <button type="button" class="tui-btn" id="presetAbs">ABS <small>240 / 100</small></button>
-                    <button type="button" class="tui-btn" id="presetCooldown">Cool <small>off</small></button>
+                  <div class="tui-line"><span class="dim">Speed</span> <span class="bar"><span class="bar-speed">██████████████████████████████</span><span class="bar-todo">░░░░░░░░░░</span></span>  150%</div>
+                  <div class="tui-btn-row">
+                    <button type="button" class="tui-btn">50%</button>
+                    <button type="button" class="tui-btn">75%</button>
+                    <button type="button" class="tui-btn">100%</button>
+                    <button type="button" class="tui-btn">125%</button>
+                    <button type="button" class="tui-btn">150%</button>
+                    <button type="button" class="tui-btn">200%</button>
+                  </div>
+                  <div class="tui-btn-row">
+                    <button type="button" class="tui-btn">&minus;5</button>
+                    <button type="button" class="tui-btn">+5</button>
+                    <span class="tui-input">Speed</span>
+                  </div>
+                  <div class="tui-line" style="margin-top:0.6rem;"><span class="dim">Flow</span>&nbsp; <span class="bar"><span class="bar-flow">████████████████████</span><span class="bar-todo">░░░░░░░░░░░░░░░░░░░░</span></span>  100%</div>
+                  <div class="tui-btn-row">
+                    <button type="button" class="tui-btn">90%</button>
+                    <button type="button" class="tui-btn">95%</button>
+                    <button type="button" class="tui-btn">100%</button>
+                    <button type="button" class="tui-btn">105%</button>
+                    <button type="button" class="tui-btn">110%</button>
+                  </div>
+                  <div class="tui-btn-row">
+                    <button type="button" class="tui-btn">&minus;5</button>
+                    <button type="button" class="tui-btn">+5</button>
+                    <span class="tui-input">Flow %</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="tui-card">
+                <div class="card-title">Motion limits</div>
+                <div class="card-body">
+                  <div class="tui-line"><span class="dim">Velocity</span> 500 <span class="dim">mm/s</span> &nbsp; <span class="dim">Accel</span> 2000 <span class="dim">mm/s²</span></div>
+                  <div class="tui-line"><span class="dim">Square corner</span> 5.0 <span class="dim">mm/s</span> &nbsp; <span class="dim">Min cruise</span> 50<span class="dim">%</span></div>
+                  <div class="tui-btn-row">
+                    <span class="tui-input">velocity</span>
+                    <span class="tui-input">accel</span>
+                  </div>
+                  <div class="tui-btn-row">
+                    <span class="tui-input">scv</span>
+                    <span class="tui-input">cruise</span>
+                    <button type="button" class="tui-btn tui-btn-primary">Apply</button>
+                  </div>
+                  <div class="tui-btn-row">
+                    <button type="button" class="tui-btn">Reset to config</button>
                   </div>
                 </div>
               </div>
@@ -493,7 +504,7 @@
                   <button type="button" class="tui-btn tui-btn-danger" id="btnClearMesh">Clear</button>
                 </div>
                 <p class="dim font-sm" style="margin-top:14px;">
-                  <code>10,10</code><br>10×10 = 100 points, roughly 3 min
+                  <code>7,7</code><br>7×7 = 49 points, roughly 2 min
                 </p>
                 <div class="mesh-stats-block">
                   <div class="mesh-stat-item">
@@ -502,19 +513,19 @@
                   </div>
                   <div class="mesh-stat-item">
                     <span class="dim">Min</span>
-                    <strong class="text-blue">-0.040 mm</strong>
+                    <strong class="text-blue">-0.045 mm</strong>
                   </div>
                   <div class="mesh-stat-item">
                     <span class="dim">Max</span>
-                    <strong class="text-orange">+0.163 mm</strong>
+                    <strong class="text-orange">+0.058 mm</strong>
                   </div>
                   <div class="mesh-stat-item">
                     <span class="dim">Range</span>
-                    <strong class="text-green">0.203 mm</strong>
+                    <strong class="text-green">0.103 mm</strong>
                   </div>
                   <div class="mesh-stat-item">
                     <span class="dim">Points</span>
-                    <strong>20 x 20</strong>
+                    <strong>7 x 7</strong>
                   </div>
                 </div>
               </div>
@@ -524,9 +535,9 @@
                 <div class="mesh-grid-header">
                   <span>Heightmap</span>
                   <div class="gradient-scale-bar">
-                    <span>-0.040</span>
+                    <span>-0.045</span>
                     <div class="scale-gradient"></div>
-                    <span>+0.163</span>
+                    <span>+0.058</span>
                   </div>
                 </div>
                 <div class="heightmap-grid" id="heightmapGrid">
@@ -546,7 +557,7 @@
                 </div>
                 <div class="webcam-controls">
                   <button type="button" class="tui-btn tui-btn-sm" id="btnPauseWebcam">Pause</button>
-                  <button type="button" class="tui-btn tui-btn-sm" id="btnWebcamMode">Renderer: kitty graphics</button>
+                  <button type="button" class="tui-btn tui-btn-sm" id="btnWebcamMode">Renderer: kitty graphics (best)</button>
                 </div>
               </div>
               <div class="webcam-canvas-area" id="webcamViewArea">
@@ -756,7 +767,10 @@
           </div>
           <h3 class="feature-title">The camera, in the terminal</h3>
           <p class="feature-text">
-            Kitty and ghostty get the graphics protocol, sixel terminals get sixel, and everything else falls back to half-blocks. On kitty the frame is sent as raw pixels rather than a PNG, which is 2ms of encoding instead of 38.
+            <strong>kitty is the one to use.</strong> It and ghostty get the graphics
+            protocol — a real image, and the frame goes out as raw pixels rather than a
+            PNG, which is 2ms of encoding instead of 38. Sixel terminals get sixel;
+            everything else falls back to half-blocks, which works but looks like it.
           </p>
         </div>
 

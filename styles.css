@@ -2118,3 +2118,359 @@ kbd {
     padding: 64px 0;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Terminal fidelity
+   --------------------------------------------------------------------------
+   Everything inside the frame is meant to read as the TUI, not as a web
+   dashboard. The app draws its panels and buttons out of box-drawing
+   characters on a monospace grid: thin single-line borders with rounded
+   corners, no fills, no gradients, no pill badges, and colour used only to
+   mean something. These rules come last so they win over the generic card and
+   button styling above.
+   -------------------------------------------------------------------------- */
+
+.terminal-frame,
+.terminal-frame input,
+.terminal-frame button {
+  font-family: var(--font-mono);
+}
+
+.terminal-frame {
+  border-radius: var(--radius-md);
+}
+
+/* --- Panels --------------------------------------------------------------- */
+
+.terminal-frame .tui-card {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  box-shadow: none;
+  padding: 0.85rem 1.1rem 1rem;
+}
+
+.terminal-frame .tui-card:hover {
+  border-color: var(--border-subtle);
+  transform: none;
+}
+
+/* The title is the first thing inside the border, in the accent colour, with
+   nothing opposite it. The app has no room for a status chip up there. */
+.terminal-frame .card-title {
+  display: block;
+  margin-bottom: 0.65rem;
+  color: var(--primary);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.terminal-frame .card-header {
+  border: 0;
+  padding: 0;
+  margin-bottom: 0.65rem;
+}
+
+.terminal-frame .tui-line {
+  font-size: 0.8rem;
+  line-height: 1.65;
+  white-space: nowrap;
+  overflow-x: auto;
+  color: var(--text-main);
+}
+
+.terminal-frame .dim {
+  color: var(--text-muted);
+}
+
+.terminal-frame .ok {
+  color: var(--success);
+}
+
+.terminal-frame .target {
+  color: var(--success);
+}
+
+.terminal-frame .state-live {
+  color: #4a9eff;
+  font-weight: 600;
+}
+
+/* --- Bars are block characters, as they are in the terminal --------------- */
+
+.terminal-frame .bar {
+  letter-spacing: -0.5px;
+}
+
+.terminal-frame .bar-done,
+.terminal-frame .bar-speed {
+  color: var(--warning);
+}
+
+.terminal-frame .bar-flow {
+  color: var(--success);
+}
+
+.terminal-frame .bar-todo {
+  color: var(--border-subtle);
+}
+
+/* --- Buttons -------------------------------------------------------------- */
+
+.terminal-frame .tui-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.7rem;
+}
+
+.terminal-frame .tui-btn {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 400;
+  padding: 0.4rem 0.85rem;
+  box-shadow: none;
+}
+
+.terminal-frame .tui-btn:hover:not(:disabled) {
+  background: var(--bg-card-hover);
+  border-color: var(--text-dim);
+  transform: none;
+}
+
+.terminal-frame .tui-btn:disabled {
+  color: var(--text-dim);
+  border-color: var(--border-subtle);
+  opacity: 1;
+}
+
+/* The app tints the border and the label, never the fill. */
+.terminal-frame .tui-btn-primary,
+.terminal-frame .tui-btn-danger {
+  background: transparent;
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.terminal-frame .tui-btn-primary:hover:not(:disabled),
+.terminal-frame .tui-btn-danger:hover:not(:disabled) {
+  background: var(--primary-subtle);
+}
+
+/* An empty input shows its placeholder, boxed like everything else. */
+.terminal-frame .tui-input {
+  display: inline-block;
+  min-width: 7.5rem;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+}
+
+/* --- Chrome --------------------------------------------------------------- */
+
+.terminal-frame .session-status,
+.terminal-frame .fps-badge,
+.terminal-frame .badge-success,
+.terminal-frame .badge-mini-active,
+.terminal-frame .live-rec-badge {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  border-radius: 0;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.terminal-frame .session-status {
+  color: #4a9eff;
+}
+
+.terminal-frame .badge-success,
+.terminal-frame .fps-badge {
+  color: var(--success);
+}
+
+.terminal-frame .badge-mini-active {
+  color: var(--warning);
+}
+
+/* --- Heightmap: solid colour, the way the terminal draws it ---------------- */
+
+/* The terminal draws each probe point as two solid colour cells with no
+   number in them. text-indent hides the label without collapsing the box the
+   way font-size: 0 would. */
+.terminal-frame .mesh-cell {
+  text-indent: -9999px;
+  overflow: hidden;
+  border-radius: 0;
+  border: 0;
+  min-height: 26px;
+}
+
+.terminal-frame .heightmap-grid {
+  gap: 0;
+  align-content: stretch;
+}
+
+/* --- Files table ---------------------------------------------------------- */
+
+.terminal-frame .tui-table,
+.terminal-frame .tui-table th,
+.terminal-frame .tui-table td {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+
+.terminal-frame .tui-table th {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+@media (max-width: 820px) {
+  .terminal-frame .tui-line {
+    font-size: 0.72rem;
+  }
+}
+
+/* The app marks the active tab with accent text and a rule beneath it, and
+   shows each tab's key as a bare accent letter — not as a filled pill. */
+.terminal-frame .tui-tab {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-weight: 400;
+  padding: 0.5rem 0.9rem;
+  border-bottom: 2px solid transparent;
+}
+
+.terminal-frame .tui-tab:hover {
+  background: transparent;
+  color: var(--text-main);
+}
+
+.terminal-frame .tui-tab.active {
+  background: transparent;
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.terminal-frame .key-hint,
+.terminal-frame .key-cmd kbd {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  margin-right: 0.35rem;
+  border-radius: 0;
+  color: var(--primary);
+  font-family: var(--font-mono);
+  font-size: inherit;
+  font-weight: 400;
+}
+
+.terminal-frame .terminal-statusbar {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.terminal-frame .key-cmd {
+  color: var(--text-muted);
+}
+
+/* The jog column carries four home buttons, a cross, a Z column, a step row
+   and the Z offset controls; 240px clipped most of them. */
+.terminal-frame .move-layout-grid {
+  grid-template-columns: 340px 1fr;
+}
+
+.terminal-frame .jog-panel {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+}
+
+.terminal-frame .home-buttons-row {
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+.terminal-frame .home-buttons-row .tui-btn {
+  flex: 0 0 auto;
+  padding: 0.4rem 0.7rem;
+}
+
+.terminal-frame .jog-step-selector {
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+/* A selected step is marked the way the app marks it: accent text in a
+   bordered box, not a filled pill. */
+.terminal-frame .step-btn {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  padding: 0.35rem 0.6rem;
+}
+
+.terminal-frame .step-btn.active {
+  background: transparent;
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.terminal-frame .wireframe-3d-panel,
+.terminal-frame .mesh-sidebar,
+.terminal-frame .mesh-heightmap-container,
+.terminal-frame .files-panel-wrapper,
+.terminal-frame .webcam-container,
+.terminal-frame .graph-panel-wrapper,
+.terminal-frame .settings-card,
+.terminal-frame .console-wrapper {
+  background: transparent;
+  border-radius: 6px;
+}
+
+.hero-note {
+  max-width: 640px;
+  margin: 1.5rem auto 0;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.hero-note strong {
+  color: var(--text-main);
+}
+
+.hero-note a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border-active);
+}
+
+.hero-note a:hover {
+  color: var(--primary-hover);
+}

@@ -20,6 +20,13 @@ itself; this is a client you run on your own machine.
   `mainsailos.local` or `192.168.1.50`.
 - Python 3.10 or newer on the machine you run this from.
 
+**Use [kitty](https://sw.kovidgoyal.net/kitty/) if you can.** It works in any
+terminal, but kitty (and ghostty) support the graphics protocol, which is the
+difference between a real webcam image and an approximation of one in coloured
+blocks — and between about 2ms and 38ms of work per frame. The Klipper mark in
+the header is a real image there too. See
+[Webcam rendering](#webcam-rendering) for the alternatives.
+
 ## Screenshots
 
 Every one of these is a real session against a real printer, captured mid-print.
@@ -446,6 +453,11 @@ its neighbour gets it, rather than an equal slice it would overflow. Resizing
 the terminal reflows the whole thing.
 
 ## Webcam rendering
+
+**kitty is the one to use**, with ghostty a close second: both speak the kitty
+graphics protocol, so the frame is an actual image and costs almost nothing to
+send. Everything below still works, it just looks progressively less like a
+photograph.
 
 The webcam draws real images with
 [textual-image](https://pypi.org/project/textual-image/). How good it looks

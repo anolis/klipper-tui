@@ -333,14 +333,16 @@ function init3DWireframe() {
     const y1 = x * sinY + y * cosY;
     const z1 = z;
 
-    // Rotate Tilt (around X)
+    // Rotate Tilt (around X). z2 was previously written in terms of itself,
+    // which threw on every load and took the rest of the demo's start-up down
+    // with it — the bed mesh, the braille graph, the webcam and the clock all
+    // initialise after this one.
     const cosT = Math.cos(tilt);
     const sinT = Math.sin(tilt);
-    const y2 = y1 * cosT - z1 * sinT;
-    const z2 = y1 * sinT + z2 * cosT; // isometric elevation
+    const z2 = y1 * sinT + z1 * cosT; // isometric elevation
 
     const px = width / 2 + x1 * scale;
-    const py = height / 2 - (z1 * Math.cos(tilt) - y1 * Math.sin(tilt)) * scale;
+    const py = height / 2 - z2 * scale;
     return [px, py];
   }
 
