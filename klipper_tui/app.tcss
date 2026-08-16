@@ -63,33 +63,52 @@ Footer {
 
 /* --- Buttons ------------------------------------------------------------- */
 
+/* Terminal cells cannot round, but a "round" border draws the corner glyphs
+   and reads as a rounded button so long as the fill does not run past them —
+   hence outlines on the panel ground rather than solid blocks. */
 Button {
     min-width: 10;
     height: 3;
-    border: none;
-    margin: 0 1 1 0;
-    padding: 0 2;
-    background: $panel-lighten-1;
+    border: round $panel-lighten-3;
+    margin: 0 1 0 0;
+    padding: 0 1;
+    background: $surface;
     color: $foreground;
 }
 
 Button:hover {
-    background: $panel-lighten-3;
+    border: round $accent;
+    background: $panel-lighten-1;
+}
+
+Button:focus {
+    border: round $accent;
+    text-style: bold;
 }
 
 Button.-primary {
-    background: $primary;
-    color: $button-color-foreground;
+    border: round $primary;
+    color: $text-primary;
 }
 
 Button.-danger {
-    background: $error;
-    color: $button-color-foreground;
+    border: round $error;
+    color: $text-error;
 }
 
 Button.-success {
-    background: $success;
-    color: $button-color-foreground;
+    border: round $success;
+    color: $text-success;
+}
+
+Button.-muted {
+    border: round $panel-lighten-1;
+    color: $text-muted;
+}
+
+Button:disabled {
+    border: round $panel;
+    color: $text-disabled;
 }
 
 /* --- Tabs ---------------------------------------------------------------- */
@@ -192,10 +211,10 @@ Input:focus {
 /* Rows of many short buttons (presets, jog steps) need tighter chrome or the
    last button overflows the panel. */
 .compact-row Button {
-    min-width: 7;
+    min-width: 9;
     width: auto;
     padding: 0 1;
-    margin: 0 1 1 0;
+    margin: 0 1 0 0;
 }
 
 .step-row {
@@ -317,20 +336,15 @@ PreheatScreen {
 }
 
 .setting-row Button {
-    /* The bullet glyphs are double-width, so 12 wraps the label. */
-    min-width: 15;
-    width: 15;
+    /* Bullet glyphs are double-width and the border takes two more columns. */
+    min-width: 17;
+    width: 17;
 }
 
 .setting-label {
     height: 3;
     content-align: left middle;
     color: $foreground;
-}
-
-Button.-muted {
-    background: $panel;
-    color: $text-muted;
 }
 
 #settings-panel {
@@ -405,4 +419,25 @@ OfflineScreen {
     padding: 1 2;
     background: $surface;
     border: thick $error;
+}
+
+/* --- Material preset editor ---------------------------------------------- */
+
+#st-preset-list {
+    height: auto;
+    max-height: 24;
+}
+
+/* Outranks the generic ".btn-row Input" width, which is a type selector and
+   would otherwise win. */
+.btn-row Input.preset-name {
+    width: 22;
+}
+
+.btn-row Input.preset-temp {
+    width: 13;
+}
+
+#st-preset-new-name {
+    width: 20;
 }

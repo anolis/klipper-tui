@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Button, Input, Label, Static
 
 from ..settings import DASHBOARD_PANELS, Settings, config_path
@@ -28,6 +28,22 @@ class SettingsPanel(Vertical):
             with Horizontal(classes="btn-row setting-row"):
                 yield Button("", id=f"st-toggle-{key}")
                 yield Static(label, classes="setting-label")
+
+        yield Label("Material presets", classes="panel-title")
+        yield Static(
+            "[$text-muted]The buttons on the Temperature panel. Edit a row and "
+            "press Apply; add or remove one and the buttons follow.[/]"
+        )
+        yield VerticalScroll(id="st-preset-list")
+        with Horizontal(classes="btn-row"):
+            yield Input(placeholder="name", id="st-preset-new-name")
+            yield Input(placeholder="hotend °C", id="st-preset-new-hot",
+                        type="integer")
+            yield Input(placeholder="bed °C", id="st-preset-new-bed",
+                        type="integer")
+            yield Button("Add", id="st-preset-add", classes="-success")
+            yield Button("Apply", id="st-preset-apply", classes="-primary")
+        yield Static("", id="st-preset-note", classes="dim")
 
         yield Label("Webcam", classes="panel-title")
         with Horizontal(classes="btn-row"):
@@ -58,12 +74,103 @@ class SettingsPanel(Vertical):
     def on_mount(self) -> None:
         self.refresh_toggles()
         self.refresh_themes(self.app.theme)
+        self.refresh_presets()
         self.query_one("#st-webcam-hint", Static).update(
             f"[$text-muted]Reset returns to {self.default_webcam_url}[/]"
         )
         self.query_one("#st-config-path", Static).update(
             f"[$text-muted]saved to {config_path()}[/]"
         )
+
+    # -- material presets ------------------------------------------------------
+
+    def refresh_presets(self) -> None:
+        """Rebuild one editable row per preset.
+
+        Rows are addressed by position rather than by name, since a preset can
+        be called anything and widget ids cannot.
+        """
+        try:
+            container = self.query_one("#st-preset-list", VerticalScroll)
+        except Exception:
+            return
+        self.preset_order = list(self.settings.presets)
+        container.remove_children()
+        rows = []
+        for index, name in enumerate(self.preset_order):
+            hot, bed = self.settings.presets[name]
+            rows.append(Horizontal(
+                Input(value=name, id=f"st-pn-{index}", classes="preset-name"),
+                Input(value=str(hot), id=f"st-ph-{index}", type="integer",
+                      classes="preset-temp"),
+                Input(value=str(bed), id=f"st-pb-{index}", type="integer",
+                      classes="preset-temp"),
+                Button("Remove", id=f"st-prm-{index}", classes="-danger"),
+                classes="btn-row",
+            ))
+        if rows:
+            container.mount(*rows)
+        self._note("")
+
+    def _note(self, message: str) -> None:
+        try:
+            self.query_one("#st-preset-note", Static).update(message)
+        except Exception:
+            pass
+
+    def read_presets(self) -> dict | None:
+        """Collect the edited rows. None if anything is unusable."""
+        collected: dict[str, tuple[int, int]] = {}
+        for index in range(len(getattr(self, "preset_order", []))):
+            try:
+                name = self.query_one(f"#st-pn-{index}", Input).value.strip()
+                hot = self.query_one(f"#st-ph-{index}", Input).value.strip()
+                bed = self.query_one(f"#st-pb-{index}", Input).value.strip()
+            except Exception:
+                continue
+            if not name:
+                self._note("[$error]A preset needs a name.[/]")
+                return None
+            try:
+                pair = (int(hot), int(bed))
+            except ValueError:
+                self._note(f"[$error]{name}: both temperatures must be "
+                           f"numbers.[/]")
+                return None
+            if name in collected:
+                self._note(f"[$error]Two presets are both called {name}.[/]")
+                return None
+            collected[name] = pair
+        return collected
+
+    def new_preset(self) -> tuple[str, tuple[int, int]] | None:
+        name = self.query_one("#st-preset-new-name", Input).value.strip()
+        hot = self.query_one("#st-preset-new-hot", Input).value.strip()
+        bed = self.query_one("#st-preset-new-bed", Input).value.strip()
+        if not name:
+            self._note("[$error]Give the new preset a name.[/]")
+            return None
+        if name in self.settings.presets:
+            self._note(f"[$error]{name} already exists.[/]")
+            return None
+        try:
+            pair = (int(hot), int(bed or 0))
+        except ValueError:
+            self._note("[$error]Temperatures must be numbers.[/]")
+            return None
+        return name, pair
+
+    def clear_new_preset(self) -> None:
+        for widget_id in ("#st-preset-new-name", "#st-preset-new-hot",
+                          "#st-preset-new-bed"):
+            try:
+                self.query_one(widget_id, Input).value = ""
+            except Exception:
+                pass
+
+    def preset_at(self, index: int) -> str | None:
+        order = getattr(self, "preset_order", [])
+        return order[index] if 0 <= index < len(order) else None
 
     def refresh_themes(self, active: str) -> None:
         for name in all_theme_names():

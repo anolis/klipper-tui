@@ -786,6 +786,31 @@ class KlipperTUI(App):
             self.run_worker(self._machine_restart(firmware=False),
                             group="machine", exclusive=True)
 
+        # Material presets
+        elif bid == "st-preset-apply":
+            panel = self._owner(event.button, SettingsPanel)
+            edited = panel.read_presets()
+            if edited is not None:
+                self._save_presets(edited, "presets saved")
+        elif bid == "st-preset-add":
+            panel = self._owner(event.button, SettingsPanel)
+            addition = panel.new_preset()
+            if addition is not None:
+                # Keep any edits already made to the existing rows.
+                edited = panel.read_presets()
+                if edited is not None:
+                    name, pair = addition
+                    edited[name] = pair
+                    panel.clear_new_preset()
+                    self._save_presets(edited, f"added {name}")
+        elif bid.startswith("st-prm-"):
+            panel = self._owner(event.button, SettingsPanel)
+            name = panel.preset_at(int(bid.removeprefix("st-prm-")))
+            if name:
+                edited = panel.read_presets() or dict(self.settings.presets)
+                edited.pop(name, None)
+                self._save_presets(edited, f"removed {name}")
+
         # Settings
         elif bid in ("st-webcam-apply", "st-webcam-reset"):
             panel = self._owner(event.button, SettingsPanel)
@@ -995,6 +1020,20 @@ class KlipperTUI(App):
         except MoonrakerError as exc:
             self._console_write("write_system", f"error: {exc}")
             self.notify(str(exc), severity="error", title=action)
+
+    def _save_presets(self, presets: dict, message: str) -> None:
+        """Persist presets and rebuild everything that shows them."""
+        self.settings.presets = presets
+        self.settings.save()
+        set_presets(presets)
+        for panel in self.query(SettingsPanel):
+            panel.refresh_presets()
+            panel._note(f"[$success]{message}[/]")
+        # The temperature buttons are built from the presets, so the panel has
+        # to be remade for the change to show.
+        self.run_worker(self.rebuild_dashboard(), group="dashboard",
+                        exclusive=True)
+        self.notify(message, title="Presets")
 
     def _files_selection(self) -> str | None:
         for panel in self.query(FilesPanel):

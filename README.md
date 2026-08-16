@@ -217,9 +217,11 @@ are written there by the UI. Two things are worth editing by hand:
 }
 ```
 
-`presets` are the material buttons, as `[hotend, bed]` in °C. Add, remove, or
-rename them freely — the shipped values are deliberately conservative, so set
-them to whatever your filament actually wants.
+`presets` are the material buttons, as `[hotend, bed]` in °C. These are easier
+to edit on the Settings tab, where adding or removing one updates the buttons
+straight away; the file is only worth touching if you prefer it. The shipped
+values are deliberately conservative, so set them to whatever your filament
+actually wants.
 
 `filament_length` is the default load/unload distance in mm. The default of
 100 suits direct drive; for a bowden tube use roughly its length plus the
