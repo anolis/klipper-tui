@@ -81,6 +81,8 @@ class KlipperTUI(App):
         self._klippy_ready = False
         self._restore: dict | None = None
         self._print_state: str | None = None
+        self._job_file: str | None = None
+        self._job_meta: dict = {}
         self._cooldown_pending = False
         self._offline_screen: OfflineScreen | None = None
         # Commands are queued and sent by a background task. Awaiting a slow
@@ -192,6 +194,9 @@ class KlipperTUI(App):
         if self._last_files is not None:
             for files in self.query(FilesPanel):
                 files.load_files(self._last_files)
+        if self._job_meta:
+            for panel in self.query(StatusPanel):
+                panel.set_job_metadata(self._job_meta)
 
     # -- lifecycle ------------------------------------------------------------
 
@@ -231,6 +236,7 @@ class KlipperTUI(App):
             pass
 
         try:
+            self._watch_job_file(status)
             self._watch_print_state(status)
         except Exception:
             # Never let a prompt failure interrupt the status stream.
@@ -294,6 +300,32 @@ class KlipperTUI(App):
                 self.call_later(self._on_klippy_ready)
         else:
             bar.update("[$error]●[/] disconnected — retrying…")
+
+    def _watch_job_file(self, status: dict) -> None:
+        """Fetch the slicer's figures whenever the job changes."""
+        filename = (status.get("print_stats") or {}).get("filename") or None
+        if filename == self._job_file:
+            return
+        self._job_file = filename
+        self._job_meta = {}
+        for panel in self.query(StatusPanel):
+            panel.set_job_metadata({})
+        if filename:
+            self.call_later(
+                lambda: self.run_worker(self._load_job_meta(filename),
+                                        group="jobmeta", exclusive=True)
+            )
+
+    async def _load_job_meta(self, filename: str) -> None:
+        try:
+            meta = await self.client.file_metadata(filename)
+        except Exception:
+            return
+        if filename != self._job_file:
+            return  # the job moved on while we were asking
+        self._job_meta = meta or {}
+        for panel in self.query(StatusPanel):
+            panel.set_job_metadata(self._job_meta)
 
     def _watch_print_state(self, status: dict) -> None:
         """Offer a cooldown when a job stops, however it was cancelled."""

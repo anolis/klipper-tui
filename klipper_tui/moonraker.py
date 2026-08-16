@@ -225,6 +225,10 @@ class MoonrakerClient:
             "server.temperature_store", {"include_monitors": False}
         )
 
+    async def file_metadata(self, filename: str) -> dict:
+        """Slicer-supplied information about a gcode file."""
+        return await self.call("server.files.metadata", {"filename": filename})
+
     async def list_gcode_files(self) -> list[dict]:
         result = await self.call("server.files.list", {"root": "gcodes"})
         return result if isinstance(result, list) else result.get("files", [])

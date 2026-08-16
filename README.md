@@ -127,6 +127,14 @@ values and needs to stay comparable between themes. The console resolves
 colours to concrete hex at write time, because `RichLog` renders Rich markup
 and cannot read `$token` styles.
 
+## Time remaining
+
+The ETA prefers the slicer's own estimate, taken from the file's metadata, and
+shows the clock time the job should finish along with which source it used.
+Extrapolating from how much of the file has been read is very wrong early on —
+a six-hour print can sit under 1% for its first forty minutes — so that is only
+a last resort, after filament used, and only once at least 2% is done.
+
 ## Job control
 
 Pause, Resume, Cancel, and Restart sit on the Status panel, so they are on the
