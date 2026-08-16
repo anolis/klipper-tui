@@ -62,6 +62,60 @@ panel.algorithm = "lagrange"
 check("lagrange >6 rejected", panel.validate_count((10, 10)) is not None)
 check("lagrange 6x6 ok", panel.validate_count((6, 6)) is None)
 
+# Live view lifecycle: joining a run this app did not start, and leaving it.
+import time
+from klipper_tui.panels import bedmesh as bm_module
+
+live = BedMeshPanel.__new__(BedMeshPanel)
+live.algorithm = "bicubic"
+live._count_seeded = True
+live.live = {}
+live.live_expected = None
+live.live_joined = False
+live._last_probe_at = 0.0
+live.bounds = (10.0, 10.0, 185.0, 239.0)
+live._redraw_live = lambda: None
+live._render_heightmap = lambda matrix, lo, hi: "MESH"
+live.query_one = lambda *a, **k: type(
+    "Stub", (), {"update": lambda self, value: None})()
+
+BASE_CFG = {"configfile": {"config": {"bed_mesh": {
+    "algorithm": "bicubic", "probe_count": "10,10",
+    "mesh_min": "10,10", "mesh_max": "185,239"}}}}
+
+
+def mesh_status(matrix):
+    payload = dict(BASE_CFG)
+    payload["bed_mesh"] = {
+        "profile_name": "default" if matrix else "",
+        "probed_matrix": matrix or [[]],
+        "profiles": {"default": {"points": [[0.1] * 10] * 10}},
+    }
+    return payload
+
+
+live.start_live((10, 10), joined=True)
+live.add_probe(10.0, 10.0, 0.05)
+check("joined run is live", live.live_expected == (10, 10))
+check("joined flag set", live.live_joined)
+
+live.update_status(mesh_status(None))
+check("stays live while the mesh is empty", live.live_expected is not None)
+
+live.update_status(mesh_status([[0.01] * 10] * 10))
+check("leaves live once the mesh is populated", live.live_expected is None,
+      "a finished run must hand the display back")
+
+live.start_live((10, 10), joined=True)
+live._last_probe_at = time.monotonic() - 5
+live.update_status(mesh_status(None))
+check("stays live inside the idle window", live.live_expected is not None)
+
+live._last_probe_at = time.monotonic() - (bm_module.PROBE_IDLE_TIMEOUT + 1)
+live.update_status(mesh_status(None))
+check("times out when probing goes quiet", live.live_expected is None,
+      "an abandoned run must not pin the display forever")
+
 for f in failures:
     print("FAIL", f)
 print("bed mesh: all checks passed" if not failures else f"{len(failures)} failed")

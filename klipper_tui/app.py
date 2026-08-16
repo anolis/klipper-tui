@@ -234,17 +234,31 @@ class KlipperTUI(App):
         self._feed_live_mesh(text)
 
     def _feed_live_mesh(self, text: str) -> None:
-        """Plot probe results as Klipper reports them during a mesh run."""
+        """Plot probe results as Klipper reports them during a mesh run.
+
+        A probe result arriving while no panel is live means a calibration is
+        already under way — started from Mainsail, from the console, or before
+        this app was opened. Join it rather than keep showing the old mesh.
+        """
         try:
-            panels = [p for p in self.query(BedMeshPanel)
-                      if p.live_expected is not None]
-            if not panels:
-                return
+            probes = []
             for line in text.splitlines():
                 match = PROBE_LINE.search(line)
-                if not match:
-                    continue
-                x, y, z = (float(match.group(i)) for i in (1, 2, 3))
+                if match:
+                    probes.append(tuple(float(match.group(i))
+                                        for i in (1, 2, 3)))
+            if not probes:
+                return
+
+            panels = list(self.query(BedMeshPanel))
+            if not panels:
+                return
+            if all(p.live_expected is None for p in panels):
+                grid = self._configured_probe_count() or (10, 10)
+                for panel in panels:
+                    panel.start_live(grid, joined=True)
+
+            for x, y, z in probes:
                 for panel in panels:
                     panel.add_probe(x, y, z)
         except Exception:

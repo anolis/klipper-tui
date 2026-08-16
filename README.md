@@ -193,6 +193,13 @@ points and takes several hours.
 If the axes are not homed, Calibrate offers to home first and starts probing
 as soon as homing finishes, rather than failing with "Must home axis first".
 
+The heightmap fills in point by point while probing. This does not depend on
+the run being started here — open klipper-tui during a calibration, or start
+one from Mainsail, and it joins the run in progress rather than showing the
+previous mesh. Points probed before it joined are not shown, and it says so.
+The display returns to the saved mesh once the run finishes, or if probing
+stops without producing one.
+
 Klipper's own limits are checked before anything is sent — a minimum of 3 per
 axis, `lagrange` cannot exceed 6, and `bicubic` needs at least 4 per axis. For
 grids larger than 6, set `algorithm: bicubic` in your `[bed_mesh]` section.

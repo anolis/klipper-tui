@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import time
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -17,6 +18,9 @@ GRADIENT = [
     "#ffc107", "#ff9800", "#ff5722", "#d41216",
 ]
 
+
+# Give up on the live view if probing goes quiet without producing a mesh.
+PROBE_IDLE_TIMEOUT = 120.0
 
 # Klipper reports each probe result on the console. The wording changed
 # between releases, so both forms are accepted.
@@ -39,6 +43,8 @@ class BedMeshPanel(Vertical):
         # Live probing state, populated from console output while a mesh runs.
         self.live: dict[tuple[int, int], float] = {}
         self.live_expected: tuple[int, int] | None = None
+        self.live_joined = False          # joined a run already in progress
+        self._last_probe_at = 0.0
         self.bounds: tuple[float, float, float, float] | None = None
 
     def compose(self) -> ComposeResult:
@@ -73,12 +79,19 @@ class BedMeshPanel(Vertical):
                 except Exception:
                     pass
 
-        if self.live_expected is not None:
-            # A probe run is in progress; the live grid owns the display.
-            return
-
         mesh = status.get("bed_mesh", {})
         matrix = mesh.get("probed_matrix") or []
+
+        if self.live_expected is not None:
+            if matrix and any(matrix):
+                # Klipper clears the mesh while probing and sets it when done,
+                # so a populated matrix means the run finished.
+                self.stop_live()
+            elif time.monotonic() - self._last_probe_at > PROBE_IDLE_TIMEOUT:
+                # Probing stopped without producing a mesh: cancelled or failed.
+                self.stop_live()
+            else:
+                return  # still probing; the live grid owns the display
         profile = mesh.get("profile_name") or ""
         note = ""
 
@@ -132,14 +145,17 @@ class BedMeshPanel(Vertical):
             return low[0], low[1], high[0], high[1]
         return None
 
-    def start_live(self, count: tuple[int, int]) -> None:
+    def start_live(self, count: tuple[int, int], joined: bool = False) -> None:
         self.live.clear()
         self.live_expected = count
+        self.live_joined = joined
+        self._last_probe_at = time.monotonic()
         self._redraw_live()
 
     def stop_live(self) -> None:
         self.live.clear()
         self.live_expected = None
+        self.live_joined = False
 
     def add_probe(self, x: float, y: float, z: float) -> bool:
         """Place one probed point on the grid. False if it cannot be mapped."""
@@ -158,6 +174,7 @@ class BedMeshPanel(Vertical):
         col = max(0, min(x_cnt - 1, col))
         row = max(0, min(y_cnt - 1, row))
         self.live[(row, col)] = z
+        self._last_probe_at = time.monotonic()
         self._redraw_live()
         return True
 
@@ -177,12 +194,14 @@ class BedMeshPanel(Vertical):
         lo = min(values) if values else 0.0
         hi = max(values) if values else 0.0
 
+        note = ("   [$text-muted]joined in progress; earlier points are "
+                "not shown[/]" if self.live_joined else "")
         info.update(
             f"[$accent]probing[/]   [$text-muted]point[/] [b]{done}[/b]"
             f"[$text-muted]/{total}[/]   "
             f"[$text-muted]min[/] [b]{lo:+.3f}[/b]   "
             f"[$text-muted]max[/] [b]{hi:+.3f}[/b]   "
-            f"[$text-muted]range[/] [b]{hi - lo:.3f}mm[/]"
+            f"[$text-muted]range[/] [b]{hi - lo:.3f}mm[/]{note}"
         )
 
         rng = (hi - lo) or 1.0
