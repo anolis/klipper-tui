@@ -21,6 +21,7 @@ DASHBOARD_PANELS: dict[str, tuple[str, bool]] = {
     "temperature": ("Temperature", True),
     "tempgraph": ("Temperature History", True),
     "tuning": ("Speed & Flow", True),
+    "machine": ("Motion Limits", True),
     "extruder": ("Extruder", True),
     "toolhead": ("Toolhead", False),
     "bedmesh": ("Bed Mesh", False),

@@ -477,3 +477,7 @@ OfflineScreen {
     height: 3;
     content-align: left middle;
 }
+
+#machine-panel {
+    height: auto;
+}

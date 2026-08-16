@@ -25,6 +25,7 @@ from .panels.confirm import ConfirmScreen
 from .panels.console import ConsolePanel
 from .panels.extruder import ExtruderPanel
 from .panels.files import FilesPanel
+from .panels.machine import MachinePanel
 from .panels.gcodeview import GcodeViewPanel
 from .panels.offline import OfflineScreen
 from .panels.position import PositionPanel
@@ -162,6 +163,8 @@ class KlipperTUI(App):
             return PositionPanel()
         if key == "gcodeview":
             return GcodeViewPanel()
+        if key == "machine":
+            return MachinePanel()
         if key == "webcam":
             return WebcamPanel(self.webcam_url, self.renderer)
         if key == "console":
@@ -241,11 +244,17 @@ class KlipperTUI(App):
         try:
             for panel in self.query(StatusPanel):
                 panel.update_status(status, self.client.klippy_state)
+            # Guarded individually: one panel raising must not stop the
+            # others being updated, which is what happened when a panel lost
+            # its update_status and every panel after it went stale.
             for panel_type in (TemperaturePanel, ExtruderPanel, BedMeshPanel,
                                PositionPanel, TuningPanel, GcodeViewPanel,
-                               SettingsPanel, ToolheadPanel):
+                               ToolheadPanel, MachinePanel):
                 for panel in self.query(panel_type):
-                    panel.update_status(status)
+                    try:
+                        panel.update_status(status)
+                    except Exception:
+                        pass
             # A panel can appear on its own tab and on the dashboard at once.
             for graph in self.query(TempGraphPanel):
                 graph.append_live(status)
@@ -982,17 +991,17 @@ class KlipperTUI(App):
             self.run_worker(self._restart_job(), group="job", exclusive=True)
 
         # Motion limits
-        elif bid in ("st-limits-apply", "st-limits-reset"):
-            panel = self._owner(event.button, SettingsPanel)
-            params = (panel.default_limits() if bid == "st-limits-reset"
+        elif bid in ("mc-limits-apply", "mc-limits-reset"):
+            panel = self._owner(event.button, MachinePanel)
+            params = (panel.default_limits() if bid == "mc-limits-reset"
                       else panel.read_limits())
             if params:
                 await self.send("SET_VELOCITY_LIMIT " + " ".join(
                     f"{name}={value:g}" for name, value in params.items()))
-                panel.clear_limit_edits()
-                panel._limits_note(
-                    "[$success]limits reset to printer.cfg[/]"
-                    if bid == "st-limits-reset" else "[$success]limits applied[/]")
+                panel.clear_edits()
+                panel.note("[$success]reset to printer.cfg[/]"
+                           if bid == "mc-limits-reset"
+                           else "[$success]applied[/]")
 
         # Machine restarts
         elif bid == "st-firmware-restart":

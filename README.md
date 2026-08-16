@@ -52,7 +52,7 @@ Use `-p/--port` if Moonraker is not on 7125.
 | `b` | Mesh | Bed mesh calibration and a colour heightmap |
 | `w` | Webcam | Live MJPEG feed with pause and frame-rate control |
 | `g` | Graph | Temperature history for hotend and bed, with target lines |
-| `s` | Settings | Dashboard panels, theme, and the webcam URL |
+| `s` | Settings | Dashboard panels, presets, theme, webcam URL, restarts |
 
 `Ctrl+E` sends an emergency stop. `t` cycles themes. `q` quits.
 
@@ -217,11 +217,14 @@ SAVE_CONFIG. That restarts Klipper and stops any print, so it asks first.
 
 ## Motion limits
 
-Velocity, square corner velocity, acceleration, and minimum cruise ratio are on
-the Settings tab under Machine. They apply immediately with
-`SET_VELOCITY_LIMIT` and last until the printer restarts; Reset puts back what
-`printer.cfg` says. The cruise ratio is shown as a percentage, as Mainsail does,
-though Klipper carries it as a fraction.
+Velocity, square corner velocity, acceleration, and minimum cruise ratio sit on
+the dashboard. They apply immediately with `SET_VELOCITY_LIMIT` and last until
+the printer restarts; Reset puts back what `printer.cfg` says. The cruise ratio
+is shown as a percentage, as Mainsail does, though Klipper carries it as a
+fraction.
+
+Like any panel it can be turned off on the Settings tab, which keeps the
+restart controls.
 
 ## After a cancelled print
 
