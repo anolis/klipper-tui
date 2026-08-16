@@ -2516,8 +2516,10 @@ kbd {
 .terminal-frame #toolpathView {
   margin: 0;
   padding: 0.4rem 0.5rem;
+  /* Braille lives at U+2800-28FF, which plenty of monospace fonts skip.
+     These carry it on Linux, macOS and Windows respectively. */
   font-family: "DejaVu Sans Mono", "Noto Sans Mono", "Liberation Mono",
-               var(--font-mono), monospace;
+               "Menlo", "Cascadia Mono", var(--font-mono), monospace;
   font-size: clamp(7px, 1.25vw, 17px);
   line-height: 1;
   letter-spacing: 0;
