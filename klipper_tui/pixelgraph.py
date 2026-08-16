@@ -17,6 +17,8 @@ bitmap font baked into a picture.
 
 from __future__ import annotations
 
+import os
+
 from typing import Iterable, Sequence
 
 try:
@@ -33,26 +35,53 @@ FALLBACK_CELL = (9, 19)
 MAX_PIXELS = 1600 * 900
 
 
-def graphics_available() -> bool:
+def graphics_available(renderer: str = "auto") -> bool:
     """Can this terminal show an actual image?
 
     Half-block and unicode renderers do not count: they are coarser than the
     braille chart they would be replacing, so falling back to them would make
     the plot worse rather than better.
+
+    Detection is not done here. textual-image queries the terminal once, when
+    textual_image.renderable is first imported, and binds the answer to the
+    renderable it exports. Its own query cannot be repeated later:
+
+        "this function will not work anymore once Textual is started.
+         Textual runs a thread to read stdin and will grab the response"
+
+    Asking again from inside a running app therefore always answers no, which
+    is exactly what this did when it first shipped. Read what the library
+    already decided instead.
     """
+    forced = os.environ.get("KLIPPER_TUI_GRAPH_HIRES", "").strip().lower()
+    if forced in ("0", "false", "no"):
+        return False
+    if forced in ("1", "true", "yes"):
+        return True
+
+    # An explicit --render choice governs the graph as well as the webcam.
+    if renderer in ("sixel", "tgp"):
+        return True
+    if renderer in ("halfcell", "unicode"):
+        return False
+
     if Image is None:
         return False
     try:
-        from textual_image.renderable import sixel, tgp
+        from textual_image.renderable import Image as Resolved
+        from textual_image.renderable import SixelImage, TGPImage
     except ImportError:
         return False
-    for module in (tgp, sixel):
-        try:
-            if module.query_terminal_support():
-                return True
-        except Exception:
-            continue
-    return False
+    return Resolved in (SixelImage, TGPImage)
+
+
+def renderer_name() -> str:
+    """Which renderer textual-image settled on, for diagnosing a fallback."""
+    try:
+        from textual_image.renderable import Image as Resolved
+        return Resolved.__module__.rsplit(".", 1)[-1]
+    except Exception:
+        return "unknown"
 
 
 def cell_size() -> tuple[int, int]:

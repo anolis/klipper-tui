@@ -25,8 +25,8 @@ SERIES = [
 
 
 class TempGraphPanel(Vertical):
-    def __init__(self, compact: bool = False,
-                 use_hires: bool = True) -> None:
+    def __init__(self, compact: bool = False, use_hires: bool = True,
+                 renderer: str = "auto") -> None:
         # The compact variant sits on the dashboard: no controls, fixed window.
         super().__init__(
             id="tempgraph-dash" if compact else "tempgraph-panel",
@@ -44,7 +44,7 @@ class TempGraphPanel(Vertical):
         self._seeded = False
         self._last_append = 0.0
         # Decided once, at mount: whether the terminal can show a real image.
-        self.hires = use_hires and pixelgraph.graphics_available()
+        self.hires = use_hires and pixelgraph.graphics_available(renderer)
         self._image_widget = None
         if self.hires:
             try:

@@ -25,6 +25,7 @@ class ObjectsPanel(Vertical):
         self.excluded: set[str] = set()
         self.current: str | None = None
         self.supported = False
+        self._drawn = False
 
     def compose(self) -> ComposeResult:
         yield Label("Objects", classes="panel-title")
@@ -40,10 +41,14 @@ class ObjectsPanel(Vertical):
         current = (section or {}).get("current_object")
         current = object_name(current) if current else None
 
+        # A printer without [exclude_object] matches the initial state on
+        # every update, so the first draw has to be forced or the panel never
+        # explains itself.
         changed = (names != self.objects or excluded != self.excluded
                    or current != self.current)
         self.objects, self.excluded, self.current = names, excluded, current
-        if changed:
+        if changed or not self._drawn:
+            self._drawn = True
             self._rebuild()
 
     def _rebuild(self) -> None:

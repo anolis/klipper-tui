@@ -63,7 +63,7 @@ class BedMeshPanel(Vertical):
                 yield Button("Load Profile", id="bm-load")
                 yield Button("Save Config", id="bm-save", classes="-success")
                 yield Button("Clear", id="bm-clear", classes="-danger")
-                yield Input(placeholder="probe count", id="bm-count")
+                yield Input(placeholder="10 or 10,15", id="bm-count")
                 yield Static("", id="bm-estimate", classes="dim")
                 yield Static("", id="bm-info", classes="dim")
             yield Static("", id="heightmap")
@@ -279,7 +279,8 @@ class BedMeshPanel(Vertical):
             return
         count = self.parse_count()
         if count is None:
-            widget.update("[$text-muted]blank uses the configured count[/]")
+            widget.update("[$text-muted]blank uses the configured count.\n"
+                          "10 or 10,15 for a rectangle[/]")
             return
         problem = self.validate_count(count)
         if problem:

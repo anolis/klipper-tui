@@ -137,6 +137,9 @@ class KlipperTUI(App):
         self._dash_width: int | None = None
         self._last_ui_refresh = 0.0
         self._commands: list[str] = []
+        # Panel types already reported as failing, so the console is not
+        # flooded several times a second by the same broken panel.
+        self._panel_errors: set[str] = set()
         self._cooldown_pending = False
         self._offline_screen: OfflineScreen | None = None
         # Commands are queued and sent by a background task. Awaiting a slow
@@ -163,7 +166,8 @@ class KlipperTUI(App):
                 yield VerticalScroll(id="dash-panels")
             with TabPane("Graph", id="graph"):
                 yield TempGraphPanel(
-                    use_hires=self.settings.graph_hires)
+                    use_hires=self.settings.graph_hires,
+                    renderer=self.renderer)
             with TabPane("Console", id="console"):
                 yield ConsolePanel()
             with TabPane("Move", id="move"):
@@ -197,7 +201,8 @@ class KlipperTUI(App):
             return TemperaturePanel()
         if key == "tempgraph":
             return TempGraphPanel(
-                compact=True, use_hires=self.settings.graph_hires)
+                compact=True, use_hires=self.settings.graph_hires,
+                renderer=self.renderer)
         if key == "tuning":
             return TuningPanel()
         if key == "extruder":
@@ -370,24 +375,41 @@ class KlipperTUI(App):
         self._last_ui_refresh = now
         self._refresh_panels(status)
 
+    # Panel types fed from the status stream. StatusPanel is separate only
+    # because it takes the connection state as a second argument.
+    STATUS_PANELS = (TemperaturePanel, ExtruderPanel, BedMeshPanel,
+                     PositionPanel, TuningPanel, GcodeViewPanel,
+                     ToolheadPanel, MachinePanel,
+                     FansPanel, MacrosPanel, ObjectsPanel)
+
     def _refresh_panels(self, status: dict) -> None:
+        """Hand the status to every panel, one failure at a time.
+
+        Every panel is guarded on its own. A panel that raises on every
+        update used to take the whole fan-out down with it — the status panel
+        did exactly that, and the rest of the interface silently stopped
+        updating while still looking alive.
+        """
+        for panel in self.query(StatusPanel):
+            self._feed(panel, status, self.client.klippy_state)
+        for panel_type in self.STATUS_PANELS:
+            for panel in self.query(panel_type):
+                self._feed(panel, status)
+
+    def _feed(self, panel, *args) -> None:
         try:
-            for panel in self.query(StatusPanel):
-                panel.update_status(status, self.client.klippy_state)
-            # Guarded individually: one panel raising must not stop the
-            # others being updated.
-            for panel_type in (TemperaturePanel, ExtruderPanel, BedMeshPanel,
-                               PositionPanel, TuningPanel, GcodeViewPanel,
-                               ToolheadPanel, MachinePanel,
-                               FansPanel, MacrosPanel, ObjectsPanel):
-                for panel in self.query(panel_type):
-                    try:
-                        panel.update_status(status)
-                    except Exception:
-                        pass
-        except Exception:
-            # Panels may not be mounted yet during the first status burst.
-            pass
+            panel.update_status(*args)
+        except Exception as error:
+            # Panels are not mounted during the first status burst, so this
+            # is normal briefly. Report a given panel once, so a real bug
+            # surfaces instead of hiding behind the noise.
+            name = type(panel).__name__
+            if name in self._panel_errors:
+                return
+            self._panel_errors.add(name)
+            self.log.error(f"{name}.update_status failed: {error!r}")
+            self._console_write(
+                "write_system", f"{name} stopped updating: {error!r}")
 
         try:
             self._watch_job_file(status)

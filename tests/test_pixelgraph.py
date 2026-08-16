@@ -91,6 +91,51 @@ if brightest < 400:
 # lo == hi must not divide by zero.
 pixelgraph.render([([100] * 10, "#ffffff")], 100, 100, 60, 30, "#000000")
 
+# -- capability detection ------------------------------------------------------
+#
+# textual-image queries the terminal once, at import, and its own query cannot
+# be repeated once Textual is running. Detection must therefore read what the
+# library already decided and never ask again — asking again always answers no,
+# which is how the feature first shipped.
+
+import os
+
+from textual_image.renderable import Image as Resolved
+from textual_image.renderable import SixelImage, TGPImage, sixel, tgp
+
+
+def _explode():
+    raise AssertionError("detection re-queried the terminal")
+
+
+tgp_query, sixel_query = tgp.query_terminal_support, sixel.query_terminal_support
+tgp.query_terminal_support = _explode
+sixel.query_terminal_support = _explode
+try:
+    check("an explicit tgp renderer counts",
+          pixelgraph.graphics_available("tgp"), True)
+    check("an explicit sixel renderer counts",
+          pixelgraph.graphics_available("sixel"), True)
+    check("half-blocks do not count",
+          pixelgraph.graphics_available("halfcell"), False)
+    check("unicode does not count",
+          pixelgraph.graphics_available("unicode"), False)
+    check("auto follows the resolved renderable",
+          pixelgraph.graphics_available("auto"),
+          Resolved in (SixelImage, TGPImage))
+
+    os.environ["KLIPPER_TUI_GRAPH_HIRES"] = "1"
+    check("the override forces it on",
+          pixelgraph.graphics_available("halfcell"), True)
+    os.environ["KLIPPER_TUI_GRAPH_HIRES"] = "0"
+    check("the override forces it off",
+          pixelgraph.graphics_available("tgp"), False)
+    del os.environ["KLIPPER_TUI_GRAPH_HIRES"]
+finally:
+    tgp.query_terminal_support = tgp_query
+    sixel.query_terminal_support = sixel_query
+
+
 if failures:
     print("FAIL")
     for line in failures:

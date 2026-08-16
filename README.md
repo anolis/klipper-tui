@@ -178,12 +178,21 @@ Only the plot is a picture. The axis labels stay as text, so the numbers are
 drawn by your terminal's font at its own hinting rather than baked into an
 image by a bitmap font.
 
+Whether the terminal can show an image is decided once, by `textual-image`,
+before the interface starts — it cannot be asked afterwards, because Textual
+owns stdin by then. If the plot comes out as braille on a terminal you expect
+to do better, `--render tgp` (kitty, ghostty) or `--render sixel` says so
+explicitly, and `KLIPPER_TUI_GRAPH_HIRES=1` forces it regardless of anything
+detected.
+
 To force braille everywhere, set this in
 `~/.config/klipper-tui/settings.json`:
 
 ```json
 { "graph_hires": false }
 ```
+
+or `KLIPPER_TUI_GRAPH_HIRES=0` for a single run.
 
 Redrawing costs about 20ms and happens once a second, and the frame is sent
 the same way the webcam is — as raw pixels on kitty, which is cheap locally

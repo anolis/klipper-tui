@@ -39,6 +39,7 @@ class MacrosPanel(Vertical):
     def __init__(self) -> None:
         super().__init__(id="macros-panel", classes="panel")
         self.macros: list[str] = []
+        self._drawn = False
 
     def compose(self) -> ComposeResult:
         yield Label("Macros", classes="panel-title")
@@ -47,9 +48,13 @@ class MacrosPanel(Vertical):
 
     def update_status(self, status: dict) -> None:
         found = macro_names(status)
-        if found == self.macros:
+        # "No change" is not the same as "never drawn": a printer with no
+        # macros at all matches the initial empty list, and without this the
+        # panel would stay blank rather than saying so.
+        if found == self.macros and self._drawn:
             return
         self.macros = found
+        self._drawn = True
         self._rebuild()
 
     def _rebuild(self) -> None:

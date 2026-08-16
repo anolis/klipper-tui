@@ -14,6 +14,10 @@ from ..format import duration, state_markup
 class StatusPanel(Vertical):
     def __init__(self) -> None:
         super().__init__(id="status-panel", classes="panel")
+        # Slicer metadata for the running job, once the app has fetched it.
+        # Status updates arrive before that and read this, so it cannot wait
+        # for set_job_metadata to create it.
+        self.job_meta: dict = {}
 
     def compose(self) -> ComposeResult:
         yield Label("Status", classes="panel-title")
