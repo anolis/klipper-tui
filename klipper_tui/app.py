@@ -251,7 +251,8 @@ class KlipperTUI(App):
         # Removal must be awaited or the replacements collide on widget ids.
         await container.remove_children()
 
-        chosen = [key for key in DASHBOARD_PANELS if self.settings.visible(key)]
+        chosen = [key for key in self.settings.ordered()
+                  if self.settings.visible(key)]
         self._dash_width = width or container.size.width or self.size.width
         rows = self._pack_dashboard(chosen, self._dash_width)
 
@@ -349,7 +350,8 @@ class KlipperTUI(App):
             return
         # Only rebuild when the packing would actually differ, since a rebuild
         # throws away panel state.
-        chosen = [k for k in DASHBOARD_PANELS if self.settings.visible(k)]
+        chosen = [k for k in self.settings.ordered()
+                  if self.settings.visible(k)]
         if (self._pack_dashboard(chosen, width)
                 != self._pack_dashboard(chosen, previous)):
             self.run_worker(self.rebuild_dashboard(width), group="dashboard",
@@ -1387,6 +1389,17 @@ class KlipperTUI(App):
 
         elif bid.startswith("st-theme-"):
             self.set_theme(bid.removeprefix("st-theme-"))
+
+        elif bid.startswith("st-up-") or bid.startswith("st-down-"):
+            up = bid.startswith("st-up-")
+            key = bid.removeprefix("st-up-" if up else "st-down-")
+            if self.settings.move(key, -1 if up else 1):
+                for panel in self.query(SettingsPanel):
+                    panel.rebuild_dashboard_rows()
+                # Only worth rebuilding the dashboard if the panel is on it.
+                if self.settings.visible(key):
+                    self.run_worker(self.rebuild_dashboard(),
+                                    group="dashboard", exclusive=True)
 
         elif bid.startswith("st-toggle-"):
             key = bid.removeprefix("st-toggle-")

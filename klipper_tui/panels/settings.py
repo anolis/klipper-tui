@@ -24,10 +24,8 @@ class SettingsPanel(Vertical):
             "[$text-muted]Any panel can be shown on the dashboard as well as "
             "on its own tab. Choices are saved automatically.[/]"
         )
-        for key, (label, _) in DASHBOARD_PANELS.items():
-            with Horizontal(classes="btn-row setting-row"):
-                yield Button("", id=f"st-toggle-{key}")
-                yield Static(label, classes="setting-label")
+        # Rebuilt whenever the order changes, so the rows follow it.
+        yield Vertical(id="st-dash-list")
 
         yield Label("Material presets", classes="panel-title")
         yield Static(
@@ -72,7 +70,7 @@ class SettingsPanel(Vertical):
         yield Static("", id="st-config-path", classes="dim")
 
     def on_mount(self) -> None:
-        self.refresh_toggles()
+        self.rebuild_dashboard_rows()
         self.refresh_themes(self.app.theme)
         self.refresh_presets()
         self.query_one("#st-webcam-hint", Static).update(
@@ -182,6 +180,34 @@ class SettingsPanel(Vertical):
             button.label = "● active" if chosen else "○ use"
             button.set_class(chosen, "-primary")
             button.set_class(not chosen, "-muted")
+
+    def rebuild_dashboard_rows(self) -> None:
+        """One row per panel, in the order the dashboard will pack them."""
+        try:
+            container = self.query_one("#st-dash-list", Vertical)
+        except Exception:
+            return
+        container.remove_children()
+
+        order = self.settings.ordered()
+        rows = []
+        for position, key in enumerate(order):
+            label = DASHBOARD_PANELS.get(key, (key, False))[0]
+            up = Button("↑", id=f"st-up-{key}", classes="st-move")
+            down = Button("↓", id=f"st-down-{key}", classes="st-move")
+            up.disabled = position == 0
+            down.disabled = position == len(order) - 1
+            rows.append(Horizontal(
+                Button("", id=f"st-toggle-{key}"),
+                up, down,
+                Static(label, classes="setting-label"),
+                classes="btn-row setting-row",
+            ))
+        container.mount(*rows)
+        # Mounting is not complete until the next refresh, so the toggles
+        # cannot be labelled inline — querying them here finds nothing and
+        # every button comes up blank.
+        self.call_after_refresh(self.refresh_toggles)
 
     def refresh_toggles(self) -> None:
         for key in DASHBOARD_PANELS:

@@ -89,6 +89,10 @@ class Settings:
         self.dashboard: dict[str, bool] = {
             k: default for k, (_, default) in DASHBOARD_PANELS.items()
         }
+        # The order panels are packed in. Kept separate from the visibility
+        # map because dicts are not a natural thing to reorder by hand, and a
+        # list makes the saved file obvious to edit.
+        self.dashboard_order: list[str] = list(DASHBOARD_PANELS)
         self.load()
 
     def load(self) -> None:
@@ -119,6 +123,17 @@ class Settings:
         if isinstance(data.get("graph_hires"), bool):
             self.graph_hires = data["graph_hires"]
 
+        order = data.get("dashboard_order")
+        if isinstance(order, list):
+            # Keep only panels that still exist, in the saved order, then add
+            # anything new on the end so an upgrade does not lose a panel.
+            seen = [k for k in order
+                    if isinstance(k, str) and k in DASHBOARD_PANELS]
+            deduped = list(dict.fromkeys(seen))
+            self.dashboard_order = deduped + [
+                k for k in DASHBOARD_PANELS if k not in deduped
+            ]
+
         saved = data.get("dashboard")
         if isinstance(saved, dict):
             # Only accept known keys, so a stale file cannot inject panels.
@@ -138,11 +153,36 @@ class Settings:
                     "filament_length": self.filament_length,
                     "graph_hires": self.graph_hires,
                     "dashboard": self.dashboard,
+                    "dashboard_order": self.dashboard_order,
                 },
                 indent=2,
             ))
         except OSError:
             pass
+
+    def ordered(self) -> list[str]:
+        """Every panel key exactly once, in the order to pack them.
+
+        Deduplicated on the way out as well as on the way in: a repeated key
+        would mount the same panel id twice, which Textual refuses.
+        """
+        known = list(dict.fromkeys(
+            k for k in self.dashboard_order if k in DASHBOARD_PANELS))
+        return known + [k for k in DASHBOARD_PANELS if k not in known]
+
+    def move(self, key: str, delta: int) -> bool:
+        """Shift a panel up or down. Returns whether anything moved."""
+        order = self.ordered()
+        if key not in order:
+            return False
+        at = order.index(key)
+        to = at + delta
+        if not 0 <= to < len(order):
+            return False
+        order.insert(to, order.pop(at))
+        self.dashboard_order = order
+        self.save()
+        return True
 
     def visible(self, key: str) -> bool:
         return self.dashboard.get(key, False)

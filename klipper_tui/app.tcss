@@ -639,3 +639,20 @@ OfflineScreen {
     width: 100%;
     height: 1fr;
 }
+
+/* Reorder arrows sit between the toggle and the panel's name. */
+Button.st-move {
+    min-width: 6;
+    width: 6;
+    margin: 0 0 0 1;
+    padding: 0;
+    content-align: center middle;
+}
+
+/* The dashboard rows are mounted after compose, so the container has to grow
+   to whatever it is given. Without this it collapses to nothing and the next
+   section draws straight over the top of it. */
+#st-dash-list {
+    height: auto;
+    width: 100%;
+}

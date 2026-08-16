@@ -494,10 +494,14 @@ grids larger than 6, set `algorithm: bicubic` in your `[bed_mesh]` section.
 
 ## Dashboard
 
-Any panel can be shown on the dashboard as well as on its own tab — toggle
-them on the Settings tab. Panels are created and destroyed as you toggle, so
+Any panel can be shown on the dashboard as well as on its own tab, and put in
+whatever order you like — toggle them and move them with the arrows on the
+Settings tab. Panels are created and destroyed as you toggle, so
 one that is switched off does no work. Settings are saved to
-`$XDG_CONFIG_HOME/klipper-tui/settings.json`.
+`$XDG_CONFIG_HOME/klipper-tui/settings.json`, including the order, as
+`dashboard_order`. A panel added by a later version appears at the end rather
+than being lost, and a name that no longer exists is ignored, so hand-editing
+that list is safe.
 
 **The layout follows the width of the terminal.** Panels are packed side by
 side as far as they will comfortably go, so a wide window shows two or three
