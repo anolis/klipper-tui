@@ -339,10 +339,44 @@ class PositionPanel(Vertical):
         self._redraw()
 
     def pan_by(self, dx: float, dy: float) -> None:
+        """Shift the view. Positive dy moves it up."""
         # Pan in units of the fitted view, so it feels the same at any zoom.
         self.pan[0] += dx / self.zoom
         self.pan[1] += dy / self.zoom
         self._redraw()
+
+
+    def centre_on(self, fx: float, fy: float) -> None:
+        """Bring the point at these view fractions to the middle.
+
+        Both offsets are applied as a fraction of the canvas, so the shift
+        needed is simply how far the point is from the centre — no zoom term,
+        unlike a nudge.
+        """
+        self.pan[0] += 0.5 - fx
+        self.pan[1] += fy - 0.5
+        self._model_cache_key = None
+        self._redraw()
+
+    def _click_fractions(self, event, view_id: str):
+        """Where a click landed inside the drawing, as fractions of it."""
+        try:
+            view = self.query_one(view_id)
+        except Exception:
+            return None
+        region = view.region
+        if not region.width or not region.height:
+            return None
+        fx = (event.screen_x - region.x) / region.width
+        fy = (event.screen_y - region.y) / region.height
+        if not (0.0 <= fx <= 1.0 and 0.0 <= fy <= 1.0):
+            return None      # a click on the buttons, not the picture
+        return fx, fy
+
+    def on_click(self, event) -> None:
+        where = self._click_fractions(event, "#ps-view")
+        if where is not None:
+            self.centre_on(*where)
 
     def reset_view(self) -> None:
         self.yaw, self.tilt = 0.6, 0.5
@@ -386,7 +420,7 @@ class PositionPanel(Vertical):
         span_y = max(ys) - min(ys) or 1.0
         scale = min(cw / span_x, ch / span_y) * 0.88 * self.zoom
         off_x = cw / 2 - (max(xs) + min(xs)) / 2 * scale + self.pan[0] * cw
-        off_y = ch / 2 - (max(ys) + min(ys)) / 2 * scale + self.pan[1] * ch
+        off_y = ch / 2 - (max(ys) + min(ys)) / 2 * scale - self.pan[1] * ch
         return scale, off_x, off_y
 
     def _project(self, u: float, v: float, w: float,

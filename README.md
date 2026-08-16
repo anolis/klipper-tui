@@ -202,7 +202,9 @@ The Move tab draws the current layer as the printer works through it: what has
 been laid down so far in the material colour, what is still to come dimmed, and
 the nozzle marked. Follow tracks the printer; `−1`/`+1` hold a layer and step
 through it; `+`/`−` zoom and `← → ↑ ↓` pan, which is how you look at a corner
-of a large part; Fit reframes on the layer in view and undoes any zoom or pan.
+of a large part, and **clicking anywhere in the drawing centres it there**; Fit
+reframes on the layer in view and undoes any zoom or pan. The 3D view works the
+same way.
 
 The gcode is fetched once per job and cached, then indexed to find where each
 layer begins — only the layer being looked at is parsed, so a thirty-megabyte

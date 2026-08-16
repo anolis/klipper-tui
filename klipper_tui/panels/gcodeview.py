@@ -118,11 +118,49 @@ class GcodeViewPanel(Vertical):
         self._redraw()
 
     def pan_by(self, dx: float, dy: float) -> None:
+        """Shift the view. Positive dy moves it up, as in the 3D view.
+
+        The two used opposite conventions, which is how the up and down
+        buttons here ended up inverted.
+        """
         # Pan in fractions of the view, so it feels the same at any zoom.
         self.pan[0] += dx / self.zoom
         self.pan[1] += dy / self.zoom
         self._cache_key = None
         self._redraw()
+
+
+    def centre_on(self, fx: float, fy: float) -> None:
+        """Bring the point at these view fractions to the middle.
+
+        Both offsets are applied as a fraction of the canvas, so the shift
+        needed is simply how far the point is from the centre — no zoom term,
+        unlike a nudge.
+        """
+        self.pan[0] += 0.5 - fx
+        self.pan[1] += fy - 0.5
+        self._cache_key = None
+        self._redraw()
+
+    def _click_fractions(self, event, view_id: str):
+        """Where a click landed inside the drawing, as fractions of it."""
+        try:
+            view = self.query_one(view_id)
+        except Exception:
+            return None
+        region = view.region
+        if not region.width or not region.height:
+            return None
+        fx = (event.screen_x - region.x) / region.width
+        fy = (event.screen_y - region.y) / region.height
+        if not (0.0 <= fx <= 1.0 and 0.0 <= fy <= 1.0):
+            return None      # a click on the buttons, not the picture
+        return fx, fy
+
+    def on_click(self, event) -> None:
+        where = self._click_fractions(event, "#gv-view")
+        if where is not None:
+            self.centre_on(*where)
 
     def refit(self) -> None:
         """Reframe on the layer in view and undo any zoom or pan."""
@@ -189,7 +227,7 @@ class GcodeViewPanel(Vertical):
         off_x = ((canvas.sub_width - span_x * scale) / 2
                  + self.pan[0] * canvas.sub_width)
         off_y = ((canvas.sub_height - span_y * scale) / 2
-                 - self.pan[1] * canvas.sub_height)
+                 + self.pan[1] * canvas.sub_height)
 
         def place(x: float, y: float) -> tuple[int, int]:
             # Bed Y grows away from the viewer; screen Y grows downward.

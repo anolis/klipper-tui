@@ -1239,7 +1239,7 @@ class KlipperTUI(App):
             panel = self._owner(event.button, PositionPanel)
             pans = {
                 "ps-pan-left": (-0.08, 0.0), "ps-pan-right": (0.08, 0.0),
-                "ps-pan-up": (0.0, -0.08), "ps-pan-down": (0.0, 0.08),
+                "ps-pan-up": (0.0, 0.08), "ps-pan-down": (0.0, -0.08),
             }
             panel.pan_by(*pans[bid])
         elif bid == "ps-model":
