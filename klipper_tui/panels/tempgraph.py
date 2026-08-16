@@ -223,8 +223,7 @@ class TempGraphPanel(Vertical):
             background=self._resolve("$surface", "#141011"),
             grid=self._resolve("$panel-lighten-1", "#242021"),
         )
-        if image is not None and self._image_widget is not None:
-            self._image_widget.image = image
+        pixelgraph.show(self._image_widget, image)
 
     def _axis_column(self, lo: float, hi: float, rows: int) -> list[str]:
         """Just the labels; the plot beside them is a picture."""

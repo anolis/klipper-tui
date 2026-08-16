@@ -222,9 +222,7 @@ class GcodeViewPanel(Vertical):
             self._cache_key = key
             self._cache = self._render_toolpath(width, height)
         if self.hires:
-            # Same cache: an unchanged frame is not worth re-transmitting.
-            if self._cache is not None:
-                view.image = self._cache
+            pixelgraph.show(view, self._cache)
         else:
             view.update("\n".join(self._cache))
 

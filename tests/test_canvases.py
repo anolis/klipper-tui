@@ -149,9 +149,75 @@ async def exercise(hires: bool) -> None:
 asyncio.run(exercise(False))
 asyncio.run(exercise(True))
 
+# -- redraw discipline ---------------------------------------------------------
+#
+# Handing a widget an image tears the current one out of the terminal and
+# schedules a fresh transmission. The 3D view ticks about seven times a second
+# so that spinning is smooth; when it rebuilt its picture on every tick, even a
+# still view flooded the terminal and starved the toolpath sharing the tab.
+
+async def redraw_discipline() -> None:
+    app = Harness(hires=True)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        pos = app.query_one(PositionPanel)
+        builds = []
+        original = pos._make_canvas
+        pos._make_canvas = lambda w, h: (builds.append(1), original(w, h))[1]
+
+        # on_mount has already drawn once, so start from a clean signature.
+        pos._draw_signature = None
+        for _ in range(3):
+            pos._redraw()
+        if len(builds) != 1:
+            failures.append(
+                f"three identical redraws built {len(builds)} canvases, "
+                f"wanted one")
+
+        builds.clear()
+        pos.pos = [10.0, 20.0, 3.0]
+        pos._redraw()
+        if len(builds) != 1:
+            failures.append("a moved toolhead did not redraw")
+
+        builds.clear()
+        pos.spinning = True
+        for _ in range(4):
+            pos.yaw += 0.03
+            pos._redraw()
+        if len(builds) != 4:
+            failures.append(
+                f"spinning drew {len(builds)} of 4 frames")
+
+        # An image is only handed over when it is a different one.
+        widget = pos._image_widget
+        if widget is not None:
+            handed = []
+            base = type(widget).__mro__[1]
+            prop = base.image
+            base.image = property(prop.fget,
+                                  lambda self, v: (handed.append(id(v)),
+                                                   prop.fset(self, v))[1])
+            try:
+                same = pixelgraph.render([([1, 2], "#ffffff")], 0, 3, 40, 20,
+                                         "#000000")
+                pixelgraph.show(widget, same)
+                pixelgraph.show(widget, same)
+                pixelgraph.show(widget, same)
+                if len(handed) != 1:
+                    failures.append(
+                        f"the same image was handed over {len(handed)} times")
+            finally:
+                base.image = prop
+
+
+asyncio.run(redraw_discipline())
+
 if failures:
     print("FAIL")
     for line in failures:
         print("  " + line)
     sys.exit(1)
 print("ok")
+
+

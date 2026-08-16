@@ -61,6 +61,7 @@ class PositionPanel(Vertical):
         super().__init__(id="position-panel")
         # The volume is nothing but diagonals and the model is a few
         # thousand shaded points, both of which braille handles badly.
+        self._draw_signature: tuple | None = None
         self.hires = use_hires and pixelgraph.graphics_available(renderer)
         self._image_widget = None
         if self.hires:
@@ -487,6 +488,21 @@ class PositionPanel(Vertical):
 
         width = max(20, (view.size.width or self.size.width) - 2)
         height = max(8, (view.size.height or 16) - 1)
+
+        # Redraw only when the picture would differ. The panel ticks about
+        # seven times a second so that spinning is smooth, but a still view of
+        # a stationary toolhead is the same picture every time — and in image
+        # mode each redraw hands the terminal a fresh megabyte to transmit,
+        # which starved the toolpath sharing the tab.
+        signature = (round(self.yaw, 4), round(self.tilt, 4), self.zoom,
+                     round(self.pan[0], 4), round(self.pan[1], 4),
+                     tuple(round(v, 2) for v in self.pos), width, height,
+                     self.spinning, self.show_model, len(self.model),
+                     tuple(self.limits[1]))
+        if signature == self._draw_signature:
+            return
+        self._draw_signature = signature
+
         canvas = self._make_canvas(width, height)
         cw, ch = canvas.sub_width, canvas.sub_height
 
@@ -532,7 +548,7 @@ class PositionPanel(Vertical):
             canvas.set(head[0], head[1] + dy, C_HEAD)
 
         if self.hires:
-            view.image = canvas.image
+            pixelgraph.show(view, canvas.image)
         else:
             view.update("\n".join(canvas.render()))
 

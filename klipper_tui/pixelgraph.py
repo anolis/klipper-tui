@@ -127,6 +127,23 @@ def marker_arm(canvas) -> int:
     return max(2, canvas.sub_width // 110)
 
 
+def show(widget, image) -> None:
+    """Put an image on a widget, but only when it is a different one.
+
+    Assigning to .image tears the current picture out of the terminal and
+    schedules a fresh transmission. Doing that on every tick, with the frame
+    that is already on screen, is a delete and a re-send several times a
+    second — wasted bandwidth at best, and a picture that never settles at
+    worst. Panels redraw on a timer, so most ticks produce nothing new.
+    """
+    if image is None or widget is None:
+        return
+    if getattr(widget, "_klipper_tui_shown", None) is image:
+        return
+    widget._klipper_tui_shown = image
+    widget.image = image
+
+
 def cell_size() -> tuple[int, int]:
     try:
         from textual_image._terminal import get_cell_size
