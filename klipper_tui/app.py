@@ -83,6 +83,13 @@ class KlipperTUI(App):
         self._print_state: str | None = None
         self._cooldown_pending = False
         self._offline_screen: OfflineScreen | None = None
+        # Commands are queued and sent by a background task. Awaiting a slow
+        # command inside a message handler blocks Textual's pump, which froze
+        # the whole UI for the duration of a homing move.
+        self._gcode_queue: asyncio.Queue[tuple[str, bool, float]] = (
+            asyncio.Queue()
+        )
+        self._gcode_task: asyncio.Task | None = None
         self._last_files: list | None = None
         self._ws_task: asyncio.Task | None = None
 
@@ -199,10 +206,12 @@ class KlipperTUI(App):
         self.client.on_gcode_response(self._handle_gcode_response)
         self.client.on_connection_change(self._handle_conn)
         self._ws_task = asyncio.create_task(self.client.run())
+        self._gcode_task = asyncio.create_task(self._gcode_pump())
 
     async def on_unmount(self) -> None:
-        if self._ws_task:
-            self._ws_task.cancel()
+        for task in (self._ws_task, self._gcode_task):
+            if task:
+                task.cancel()
 
     # -- client callbacks -----------------------------------------------------
 
@@ -478,14 +487,33 @@ class KlipperTUI(App):
         for console in self.query(ConsolePanel):
             getattr(console, method)(text)
 
-    async def send(self, script: str, echo: bool = True) -> None:
+    async def send(self, script: str, echo: bool = True,
+                   timeout: float = 300.0) -> None:
+        """Queue a command. Returns at once; the pump does the waiting.
+
+        Homing and similar moves take tens of seconds, and awaiting them here
+        would stall Textual's message pump and freeze the interface.
+        """
         if echo:
             self._console_write("write_echo", script.replace("\n", " ; "))
-        try:
-            await self.client.gcode(script)
-        except MoonrakerError as exc:
-            self._console_write("write_system", f"error: {exc}")
-            self.notify(str(exc), severity="error", title="Command failed")
+        await self._gcode_queue.put((script, echo, timeout))
+
+    async def _gcode_pump(self) -> None:
+        """Send queued commands one at a time, preserving their order."""
+        while True:
+            script, _echo, timeout = await self._gcode_queue.get()
+            try:
+                await self.client.gcode(script, timeout=timeout)
+            except MoonrakerError as exc:
+                self._console_write("write_system", f"error: {exc}")
+                self.notify(str(exc), severity="error",
+                            title="Command failed")
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                self._console_write("write_system", f"error: {exc}")
+            finally:
+                self._gcode_queue.task_done()
 
     def _float(self, widget_id: str, default: float,
                within=None) -> float:
