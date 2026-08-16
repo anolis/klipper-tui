@@ -24,6 +24,7 @@ from .panels.bedmesh import PROBE_LINE, BedMeshPanel
 from .panels.confirm import ConfirmScreen
 from .panels.console import ConsolePanel
 from .panels.extruder import ExtruderPanel
+from .panels.fans import FansPanel, speed_command
 from .panels.files import FilesPanel
 from .panels.machine import MachinePanel
 from .panels.gcodeview import GcodeViewPanel
@@ -165,6 +166,8 @@ class KlipperTUI(App):
             return GcodeViewPanel()
         if key == "machine":
             return MachinePanel()
+        if key == "fans":
+            return FansPanel()
         if key == "webcam":
             return WebcamPanel(self.webcam_url, self.renderer)
         if key == "console":
@@ -249,7 +252,8 @@ class KlipperTUI(App):
             # its update_status and every panel after it went stale.
             for panel_type in (TemperaturePanel, ExtruderPanel, BedMeshPanel,
                                PositionPanel, TuningPanel, GcodeViewPanel,
-                               ToolheadPanel, MachinePanel):
+                               ToolheadPanel, MachinePanel,
+                               FansPanel):
                 for panel in self.query(panel_type):
                     try:
                         panel.update_status(status)
@@ -989,6 +993,23 @@ class KlipperTUI(App):
             await self._job("print_cancel", "Cancelled")
         elif bid == "st-restart":
             self.run_worker(self._restart_job(), group="job", exclusive=True)
+
+        # Fans
+        elif bid.startswith("fn-"):
+            panel = self._owner(event.button, FansPanel)
+            if panel is None:
+                return
+            parts = bid.split("-")
+            index = int(parts[2])
+            name = panel.fan_at(index)
+            if not name:
+                return
+            if parts[1] == "set":
+                percent = float(parts[3])
+            else:
+                percent = panel.nudged(index,
+                                       10.0 if parts[1] == "up" else -10.0)
+            await self.send(speed_command(name, percent))
 
         # Motion limits
         elif bid in ("mc-limits-apply", "mc-limits-reset"):

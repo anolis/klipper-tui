@@ -29,6 +29,15 @@ SUBSCRIPTIONS: dict[str, list[str] | None] = {
 }
 
 
+# Objects worth subscribing to that only exist under printer-specific names.
+# Which fans a machine has is entirely up to its config, so they are discovered
+# rather than assumed.
+DISCOVERED_PREFIXES = (
+    "fan_generic ", "heater_fan ", "controller_fan ", "temperature_fan ",
+    "temperature_sensor ",
+)
+
+
 class MoonrakerError(Exception):
     """Raised when Moonraker returns a JSON-RPC error response."""
 
@@ -148,10 +157,22 @@ class MoonrakerClient:
                 asyncio.create_task(self._resubscribe())
             self._emit_conn()
 
+    async def _subscription(self) -> dict:
+        """The fixed objects, plus whatever this printer actually has."""
+        objects = dict(SUBSCRIPTIONS)
+        try:
+            listed = await self.call("printer.objects.list")
+            for name in listed.get("objects", []):
+                if name.startswith(DISCOVERED_PREFIXES):
+                    objects[name] = None
+        except MoonrakerError:
+            pass
+        return objects
+
     async def _resubscribe(self) -> None:
         try:
             result = await self.call(
-                "printer.objects.subscribe", {"objects": SUBSCRIPTIONS}
+                "printer.objects.subscribe", {"objects": await self._subscription()}
             )
             self._merge(result.get("status", {}))
             self._emit_status()

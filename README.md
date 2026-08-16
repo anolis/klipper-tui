@@ -216,6 +216,18 @@ Save folds the live offset into the saved one — `Z_OFFSET_APPLY_PROBE`, or
 `Z_OFFSET_APPLY_ENDSTOP` where there is no probe — and writes it with
 SAVE_CONFIG. That restarts Klipper and stops any print, so it asks first.
 
+## Fans
+
+Every fan the printer reports gets a row on the dashboard, with its speed and
+controls. Which fans exist is read from the printer rather than assumed, so a
+second part fan, a board fan, or a chamber fan all appear on their own.
+
+How each is driven follows its type: the part cooling fan takes `M106`/`M107`,
+a `fan_generic` takes `SET_FAN_SPEED`. Fans Klipper runs itself — `heater_fan`,
+`controller_fan`, `temperature_fan` — are shown with their speed and marked
+automatic, with no controls, because setting them by hand would just be
+overridden.
+
 ## Motion limits
 
 Velocity, square corner velocity, acceleration, and minimum cruise ratio sit on

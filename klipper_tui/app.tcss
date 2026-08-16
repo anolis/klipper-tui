@@ -481,3 +481,7 @@ OfflineScreen {
 #machine-panel {
     height: auto;
 }
+
+#fans-panel, #fn-list {
+    height: auto;
+}
