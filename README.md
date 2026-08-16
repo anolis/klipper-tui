@@ -302,9 +302,33 @@ Those work in Mainsail because a proxy on the printer forwards `/webcam/` to it.
 Use the proxied `http://HOST/webcam/?action=snapshot` form rather than the
 port-specific one in that case.
 
-**Frame rate** is set with the buttons on the tab (1–10 fps). Snapshots are
-re-fetched and re-encoded every frame, so higher rates cost bandwidth and
-redraw time; 2 fps is plenty for watching a print.
+**Frame rate** is set with the buttons on the tab. Frames come from the
+camera's MJPEG stream, which pushes continuously, so there is no per-frame
+request; the number shown is what is actually being decoded, against the cap
+you asked for. If the stream cannot be reached it falls back to fetching
+snapshots and says so.
+
+### Getting more out of the camera
+
+Most Klipper images run the camera far below what it can do. Check what yours
+is actually configured for:
+
+```bash
+pgrep -a mjpg_streamer          # look for -r and -f
+v4l2-ctl --list-formats-ext -d /dev/video0   # what the camera supports
+```
+
+A common default is `-r 640x480 -f 10` on a camera capable of far more. On
+MainsailOS/OctoPi, set it in `/boot/firmware/octopi.txt`:
+
+```
+camera_usb_options="-r 1280x720 -f 30"
+```
+
+then `sudo systemctl restart webcamd`. Higher resolution is worth it in a
+terminal that draws real images (kitty, or sixel), less so where it falls back
+to unicode blocks. Bandwidth is the limit — if the delivered rate drops, step
+the resolution back down.
 
 ## Notes
 
