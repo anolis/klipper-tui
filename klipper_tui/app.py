@@ -208,6 +208,12 @@ class KlipperTUI(App):
         if self._job_meta:
             for panel in self.query(StatusPanel):
                 panel.set_job_metadata(self._job_meta)
+        for panel in self.query(GcodeViewPanel):
+            if not panel.gcode_layers and self._layers:
+                panel.set_layers(self._layers)
+            elif not self._layers and self._job_file:
+                panel.status_text = "Waiting…"
+        self._refresh_toolpath()
 
     # -- lifecycle ------------------------------------------------------------
 
@@ -435,20 +441,29 @@ class KlipperTUI(App):
         self._refresh_toolpath()
 
     def _refresh_toolpath(self) -> None:
-        """Parse whichever layer the panels are asking for."""
+        """Parse whichever layer the panels are asking for.
+
+        The panel can exist twice — its own tab and the dashboard — so work is
+        grouped by layer and the result shared, rather than parsing the same
+        layer once per copy.
+        """
         if not self._layers or not self._gcode_path:
             return
+        wanted: dict[int, list] = {}
         for panel in self.query(GcodeViewPanel):
-            wanted = panel.wanted_layer()
-            if wanted is None:
+            index = panel.wanted_layer()
+            if index is None:
                 continue
-            if panel.layer_index == wanted and panel.toolpath is not None:
+            if panel.layer_index == index and panel.toolpath is not None:
                 continue
-            self.run_worker(self._parse_layer(panel, wanted),
-                            group="toolpath", exclusive=True)
-            break
+            wanted.setdefault(index, []).append(panel)
+        if not wanted:
+            return
+        index, panels = next(iter(wanted.items()))
+        self.run_worker(self._parse_layer(panels, index),
+                        group="toolpath", exclusive=True)
 
-    async def _parse_layer(self, panel, index: int) -> None:
+    async def _parse_layer(self, panels: list, index: int) -> None:
         try:
             layer = self._layers[index]
         except IndexError:
@@ -458,7 +473,8 @@ class KlipperTUI(App):
                 read_layer, self._gcode_path, layer)
         except Exception:
             return
-        panel.set_toolpath(index, toolpath)
+        for panel in panels:
+            panel.set_toolpath(index, toolpath)
 
     async def _load_job_meta(self, filename: str) -> None:
         try:
