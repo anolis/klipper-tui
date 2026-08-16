@@ -189,7 +189,11 @@ class PositionPanel(Vertical):
         ry = x * sin_y + y * cos_y
 
         cos_t, sin_t = math.cos(self.tilt), math.sin(self.tilt)
-        return (rx, ry * sin_t - z * cos_t)
+        # Screen y grows downward, so both terms are negated: the back of the
+        # bed has to sit higher up the screen than the front, and greater Z
+        # higher still. Without the sign on the depth term the projection is
+        # left-handed and the volume renders mirrored.
+        return (rx, -ry * sin_t - z * cos_t)
 
     def _fit(self, cw: int, ch: int) -> tuple[float, float, float]:
         """Scale and offsets that fit the whole volume at this rotation."""
