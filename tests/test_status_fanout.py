@@ -135,6 +135,69 @@ for panel_type in SIMPLE:
     if panel_type not in covered:
         failures.append(f"{panel_type.__name__} is not in STATUS_PANELS")
 
+
+
+# -- the status path does more than feed panels --------------------------------
+#
+# _refresh_panels also watches for the job changing and for the print stopping.
+# Those two calls were once left inside a helper where their argument did not
+# exist, so every one raised NameError into a bare except. The toolpath never
+# loaded, the slicer's time estimate never arrived, and no cooldown was ever
+# offered — for two releases, in silence.
+
+class Recorder:
+    """Stands in for the app, recording what the status path calls."""
+
+    STATUS_PANELS = ()
+
+    def __init__(self):
+        self.seen = []
+        self.reported = []
+        self._panel_errors = set()
+        self.log = type("Log", (), {"error": staticmethod(lambda *a: None)})()
+
+    def query(self, _type):
+        return []
+
+    def _console_write(self, _method, text):
+        self.reported.append(text)
+
+    def _watch_job_file(self, status):
+        self.seen.append(("job", (status.get("print_stats") or {}).get("filename")))
+
+    def _watch_print_state(self, status):
+        self.seen.append(("state", (status.get("print_stats") or {}).get("state")))
+
+
+# The guard is the thing under test, so it is the real one.
+Recorder._guarded = app_module.KlipperTUI._guarded
+Recorder._feed = app_module.KlipperTUI._feed
+
+recorder = Recorder()
+app_module.KlipperTUI._refresh_panels(recorder, LIVE)
+
+called = [what for what, _ in recorder.seen]
+if called.count("job") != 1:
+    failures.append(f"job watcher ran {called.count('job')} times, wanted once")
+if called.count("state") != 1:
+    failures.append(
+        f"print state watcher ran {called.count('state')} times, wanted once")
+if dict(recorder.seen).get("job") != "a.gcode":
+    failures.append("the job watcher was not given the status")
+
+
+class Angry(Recorder):
+    def _watch_job_file(self, status):
+        raise RuntimeError("boom")
+
+
+angry = Angry()
+app_module.KlipperTUI._refresh_panels(angry, LIVE)
+if not any("boom" in line for line in angry.reported):
+    failures.append("a failing watcher was swallowed without a word")
+if [w for w, _ in angry.seen] != ["state"]:
+    failures.append("one failing watcher stopped the other from running")
+
 if failures:
     print("FAIL")
     for line in failures:

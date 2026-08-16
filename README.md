@@ -11,7 +11,7 @@ Moonraker is what Mainsail and Fluidd talk to as well, so if either of those
 works in your browser, this will work too. Nothing is installed on the printer
 itself; this is a client you run on your own machine.
 
-<img src="docs/screenshots/dashboard.svg" alt="The dashboard: status, temperatures, temperature history, speed and flow" width="100%">
+<img src="docs/screenshots/dashboard.png" alt="The dashboard: status, temperatures, temperature history, speed and flow" width="100%">
 
 **What you need**
 
@@ -29,17 +29,17 @@ the header is a real image there too. See
 
 ## Screenshots
 
-Every one of these is a real session against a real printer, captured mid-print.
+Every one of these is a real session against a real printer, captured mid-print in kitty — the webcam, the plots and the Klipper mark are the real images, not the half-block fallback.
 
 | | |
 |---|---|
-| <img src="docs/screenshots/toolpath.svg" alt="Toolpath viewer" width="100%"> | <img src="docs/screenshots/move.svg" alt="Homing, jog cross and Z offset" width="100%"> |
+| <img src="docs/screenshots/toolpath.png" alt="Toolpath viewer" width="100%"> | <img src="docs/screenshots/move.png" alt="Homing, jog cross and Z offset" width="100%"> |
 | **Toolpath** — the current layer as it is drawn, printed moves ahead of the nozzle in a different colour. | **Move** — homing, a jog cross, and live Z offset you can save into the probe. |
-| <img src="docs/screenshots/position.svg" alt="Toolhead position in 3D" width="100%"> | <img src="docs/screenshots/console.svg" alt="Gcode console" width="100%"> |
-| **Toolhead position** — the build volume and the loaded model on the bed, rotatable. | **Console** — gcode in, printer responses out, with Tab completion. |
-| <img src="docs/screenshots/mesh.svg" alt="Bed mesh heightmap" width="100%"> | <img src="docs/screenshots/graph.svg" alt="Temperature history" width="100%"> |
+| <img src="docs/screenshots/position.png" alt="Toolhead position in 3D" width="100%"> | <img src="docs/screenshots/webcam.png" alt="Webcam" width="100%"> |
+| **Toolhead position** — the build volume and the loaded model on the bed, rotatable. | **Webcam** — a photograph, in a terminal, on kitty. |
+| <img src="docs/screenshots/mesh.png" alt="Bed mesh heightmap" width="100%"> | <img src="docs/screenshots/graph.png" alt="Temperature history" width="100%"> |
 | **Bed mesh** — the probed heightmap, and a button to reprobe it. | **Temperature history** — the last ten minutes, hotend and bed. |
-| <img src="docs/screenshots/files.svg" alt="File browser" width="100%"> | |
+| <img src="docs/screenshots/files.png" alt="File browser" width="100%"> | |
 | **Files** — sorted by date, double-click to print. | |
 
 ## Install

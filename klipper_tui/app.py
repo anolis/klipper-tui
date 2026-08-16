@@ -406,27 +406,35 @@ class KlipperTUI(App):
             for panel in self.query(panel_type):
                 self._feed(panel, status)
 
-    def _feed(self, panel, *args) -> None:
-        try:
-            panel.update_status(*args)
-        except Exception as error:
-            # Panels are not mounted during the first status burst, so this
-            # is normal briefly. Report a given panel once, so a real bug
-            # surfaces instead of hiding behind the noise.
-            name = type(panel).__name__
-            if name in self._panel_errors:
-                return
-            self._panel_errors.add(name)
-            self.log.error(f"{name}.update_status failed: {error!r}")
-            self._console_write(
-                "write_system", f"{name} stopped updating: {error!r}")
+        # These watch for the job changing rather than drawing anything, so
+        # they run once per status, not once per panel.
+        self._guarded("job watcher", self._watch_job_file, status)
+        self._guarded("print state watcher", self._watch_print_state, status)
 
+    def _guarded(self, what: str, call, *args) -> None:
+        """Run something on the status path without letting it stop the rest.
+
+        Reported once and only once. A silent except is how the job watcher
+        went missing for two releases: it had been left inside another method
+        where its argument did not exist, so every call raised NameError into
+        a bare pass, and the toolpath, the slicer's estimate and the cooldown
+        prompt all quietly stopped working.
+        """
         try:
-            self._watch_job_file(status)
-            self._watch_print_state(status)
-        except Exception:
-            # Never let a prompt failure interrupt the status stream.
-            pass
+            call(*args)
+        except Exception as error:
+            # Panels are not mounted during the first status burst, so a
+            # failure is normal briefly. Report each source once, so a real
+            # bug surfaces instead of hiding behind the noise.
+            if what in self._panel_errors:
+                return
+            self._panel_errors.add(what)
+            self.log.error(f"{what} failed: {error!r}")
+            self._console_write("write_system", f"{what} failed: {error!r}")
+
+    def _feed(self, panel, *args) -> None:
+        name = type(panel).__name__
+        self._guarded(f"{name}.update_status", panel.update_status, *args)
 
     def _handle_gcode_response(self, text: str) -> None:
         try:
