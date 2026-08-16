@@ -48,6 +48,10 @@
   --temp-bed: #7b6f9c;
 
   --glow-color: rgba(163, 38, 56, 0.22);
+
+  --path-done: #d1553d;
+  --path-todo: #5c4a52;
+  --path-head: #e0a13c;
 }
 
 /* MAINSAIL THEME (Blue) */
@@ -76,6 +80,10 @@
   --temp-bed: #2196f3;
 
   --glow-color: rgba(33, 150, 243, 0.2);
+
+  --path-done: #ff5722;
+  --path-todo: #9999cc;
+  --path-head: #ffcc00;
 }
 
 /* FORGE THEME (Warm Amber) */
@@ -104,6 +112,10 @@
   --temp-bed: #6f9ba8;
 
   --glow-color: rgba(200, 127, 42, 0.2);
+
+  --path-done: #e0752a;
+  --path-todo: #5a5240;
+  --path-head: #f0d07a;
 }
 
 /* --------------------------------------------------------------------------

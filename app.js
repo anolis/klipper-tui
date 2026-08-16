@@ -942,12 +942,15 @@ function initToolpathViewer() {
   /* --- drawing ------------------------------------------------------------ */
 
   function themeColors() {
+    // The same three colours the app uses: $hot for what has been laid down,
+    // $vol-floor for what is still ahead of the nozzle, $vol-head for the
+    // nozzle itself.
     const style = getComputedStyle(document.documentElement);
     return {
-      done: style.getPropertyValue('--warning').trim() || '#c08238',
-      todo: style.getPropertyValue('--text-dim').trim() || '#6e5e62',
+      done: style.getPropertyValue('--path-done').trim() || '#d1553d',
+      todo: style.getPropertyValue('--path-todo').trim() || '#5c4a52',
       grid: style.getPropertyValue('--border-subtle').trim() || '#2d2024',
-      head: style.getPropertyValue('--accent').trim() || '#c4485a',
+      head: style.getPropertyValue('--path-head').trim() || '#e0a13c',
     };
   }
 
@@ -1001,14 +1004,12 @@ function initToolpathViewer() {
       }
       if (cut < stroke.length) {
         ctx.strokeStyle = colors.todo;
-        ctx.globalAlpha = 0.5;
         ctx.beginPath();
         stroke.slice(Math.max(0, cut - 1)).forEach((p, i) => {
           const [sx, sy] = px(p);
           i ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy);
         });
         ctx.stroke();
-        ctx.globalAlpha = 1;
       }
     }
 
