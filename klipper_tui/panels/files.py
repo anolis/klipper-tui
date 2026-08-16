@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from textual.app import ComposeResult
+from textual.message import Message
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, DataTable, Label, Static
 
@@ -10,6 +11,29 @@ from ..format import filesize
 
 
 class FilesPanel(Vertical):
+    class PrintRequested(Message):
+        """A file was double-clicked."""
+
+        def __init__(self, filename: str) -> None:
+            super().__init__()
+            self.filename = filename
+
+    def on_click(self, event) -> None:
+        # The first click of the pair selects the row, so by the second the
+        # selection is already what was clicked.
+        if getattr(event, "chain", 1) < 2:
+            return
+        try:
+            table = self.query_one("#file-table", DataTable)
+        except Exception:
+            return
+        region = table.region
+        if not region.contains(event.screen_x, event.screen_y):
+            return
+        filename = self.selected_file()
+        if filename:
+            self.post_message(self.PrintRequested(filename))
+
     def __init__(self) -> None:
         super().__init__(id="files-panel")
         self.files: list[dict] = []

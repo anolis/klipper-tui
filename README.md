@@ -48,7 +48,7 @@ Use `-p/--port` if Moonraker is not on 7125.
 | `d` | Dashboard | Printer state, job progress, position, temperatures, presets, extruder |
 | `c` | Console | Live gcode responses and a command input with `↑`/`↓` history |
 | `m` | Move | Homing, jog controls, and a rotating 3D view of the build volume |
-| `f` | Files | G-code file browser plus print/pause/resume/cancel |
+| `f` | Files | G-code browser — double-click a file to print it — plus pause/resume/cancel |
 | `b` | Mesh | Bed mesh calibration and a colour heightmap |
 | `w` | Webcam | Live MJPEG feed with pause and frame-rate control |
 | `g` | Graph | Temperature history for hotend and bed, with target lines |
@@ -136,6 +136,16 @@ shows the clock time the job should finish along with which source it used.
 Extrapolating from how much of the file has been read is very wrong early on —
 a six-hour print can sit under 1% for its first forty minutes — so that is only
 a last resort, after filament used, and only once at least 2% is done.
+
+## Mid-print safety
+
+While a job is printing or paused, anything that would wreck it asks first:
+homing, jogging, motors off, Z tilt, extruding by hand, loading filament,
+probing the bed, changing motion limits, saving the config.
+
+Everything you legitimately reach for during a print goes straight through —
+temperatures, fans, speed and flow, babystepping the Z offset, and the job
+controls themselves.
 
 ## Job control
 

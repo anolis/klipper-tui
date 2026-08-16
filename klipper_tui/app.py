@@ -45,6 +45,37 @@ from .settings import (DASHBOARD_PANELS, PANEL_MIN_WIDTH, Settings,
 from .theming import DEFAULT_THEME, all_theme_names, register as register_themes
 
 
+# Actions that would wreck a job in progress, and how to describe them. Any
+# control listed here asks first while a print is running or paused; everything
+# else — temperatures, fans, speed and flow, babystepping — is either harmless
+# or the very thing you reach for mid-print.
+DISRUPTIVE: dict[str, str] = {
+    "th-home-all": "Home all axes",
+    "th-home-x": "Home X",
+    "th-home-y": "Home Y",
+    "th-home-z": "Home Z",
+    "th-x-neg": "Jog the toolhead",
+    "th-x-pos": "Jog the toolhead",
+    "th-y-neg": "Jog the toolhead",
+    "th-y-pos": "Jog the toolhead",
+    "th-z-neg": "Jog the toolhead",
+    "th-z-pos": "Jog the toolhead",
+    "th-motors-off": "Disable the motors",
+    "th-ztilt": "Run Z tilt adjust",
+    "th-z-save": "Save the Z offset",
+    "ex-extrude": "Extrude by hand",
+    "ex-retract": "Retract by hand",
+    "ex-load": "Load filament",
+    "ex-unload": "Unload filament",
+    "bm-calibrate": "Probe the bed",
+    "bm-load": "Load a bed mesh",
+    "bm-clear": "Clear the bed mesh",
+    "bm-save": "Save the config",
+    "mc-limits-apply": "Change the motion limits",
+    "mc-limits-reset": "Reset the motion limits",
+}
+
+
 class KlipperTUI(App):
     CSS_PATH = "app.tcss"
     TITLE = "Klipper TUI"
@@ -900,6 +931,31 @@ class KlipperTUI(App):
 
     # -- console input --------------------------------------------------------
 
+    @on(FilesPanel.PrintRequested)
+    def _print_requested(self, event: FilesPanel.PrintRequested) -> None:
+        self.run_worker(self._start_print_confirmed(event.filename),
+                        group="print", exclusive=True)
+
+    async def _start_print_confirmed(self, filename: str) -> None:
+        """Start a file after asking, since a double-click is easy to do."""
+        if self._print_is_live():
+            state = (self.client.status.get("print_stats") or {}).get("state")
+            self.notify(f"A job is already {state}", severity="warning",
+                        title="Print")
+            return
+        ok = await self.push_screen_wait(ConfirmScreen(
+            "Start print",
+            f"Print [b]{filename}[/]?",
+            confirm_label="Start print",
+        ))
+        if not ok:
+            return
+        try:
+            await self.client.print_start(filename)
+            self.notify(f"Started {filename}", title="Print")
+        except MoonrakerError as exc:
+            self.notify(str(exc), severity="error", title="Print failed")
+
     @on(Input.Submitted, "#console-input")
     async def _console_submit(self, event: Input.Submitted) -> None:
         cmd = event.value.strip()
@@ -963,6 +1019,35 @@ class KlipperTUI(App):
     @on(Button.Pressed)
     async def _button(self, event: Button.Pressed) -> None:
         bid = event.button.id or ""
+        reason = DISRUPTIVE.get(bid)
+        if reason and self._print_is_live():
+            # Confirmation needs a worker to await the dialog, so the action is
+            # replayed once it comes back.
+            self.run_worker(self._confirm_then(bid, event.button, reason),
+                            group="confirm")
+            return
+        await self._dispatch_button(bid, event.button)
+
+    def _print_is_live(self) -> bool:
+        state = (self.client.status.get("print_stats") or {}).get("state")
+        return state in ("printing", "paused")
+
+    async def _confirm_then(self, bid: str, button, reason: str) -> None:
+        state = (self.client.status.get("print_stats") or {}).get("state")
+        job = (self.client.status.get("print_stats") or {}).get("filename") or ""
+        ok = await self.push_screen_wait(ConfirmScreen(
+            "A print is running",
+            f"[b]{reason}[/] while [b]{job or 'a job'}[/] is {state}.\n\n"
+            f"This will almost certainly ruin the print. Continue?",
+            confirm_label=reason,
+            confirm_variant="-danger",
+        ))
+        if not ok:
+            self._console_write("write_system", f"{reason.lower()}: cancelled")
+            return
+        await self._dispatch_button(bid, button)
+
+    async def _dispatch_button(self, bid: str, button) -> None:
 
         # Temperature
         if bid == "tp-set":
@@ -992,12 +1077,12 @@ class KlipperTUI(App):
             await self.send(f"G28 {bid[-1].upper()}")
         elif bid.startswith("th-step-"):
             raw = bid.removeprefix("th-step-").replace("_", ".")
-            owner = self._owner(event.button, ToolheadPanel)
+            owner = self._owner(button, ToolheadPanel)
             if owner is not None:
                 owner.step = float(raw)
         elif bid in ("th-x-neg", "th-x-pos", "th-y-neg", "th-y-pos",
                      "th-z-neg", "th-z-pos"):
-            panel = self._owner(event.button, ToolheadPanel)
+            panel = self._owner(button, ToolheadPanel)
             axis = bid.split("-")[1].upper()
             direction = 1 if bid.endswith("pos") else -1
             await self.send(panel.jog_gcode(axis, direction))
@@ -1011,7 +1096,7 @@ class KlipperTUI(App):
         elif bid == "th-z-reset":
             await self.send("SET_GCODE_OFFSET Z=0 MOVE=1")
         elif bid == "th-z-save":
-            panel = self._owner(event.button, ToolheadPanel)
+            panel = self._owner(button, ToolheadPanel)
             if panel is not None:
                 self.run_worker(self._save_z_offset(panel), group="zoffset",
                                 exclusive=True)
@@ -1023,7 +1108,7 @@ class KlipperTUI(App):
 
         # Extruder
         elif bid in ("ex-extrude", "ex-retract"):
-            panel = self._owner(event.button, ExtruderPanel)
+            panel = self._owner(button, ExtruderPanel)
             if not panel.can_extrude(self.client.status):
                 self.notify(
                     "Hotend below min_extrude_temp (170°C)",
@@ -1037,7 +1122,7 @@ class KlipperTUI(App):
             await self.send(panel.move_gcode(amount, feed, direction))
         elif bid in ("ex-load", "ex-unload"):
             # Runs in a worker so the preheat dialog can be awaited.
-            owner = self._owner(event.button, ExtruderPanel)
+            owner = self._owner(button, ExtruderPanel)
             if owner is not None:
                 self.run_worker(self._filament(bid == "ex-load", owner),
                                 group="filament", exclusive=True)
@@ -1071,7 +1156,7 @@ class KlipperTUI(App):
             )
         elif bid == "tg-targets":
             on = self.query_one("#tempgraph-panel", TempGraphPanel).toggle_targets()
-            event.button.label = "Targets" if on else "No targets"
+            button.label = "Targets" if on else "No targets"
 
         # Job controls on the status panel
         elif bid == "st-pause":
@@ -1085,7 +1170,7 @@ class KlipperTUI(App):
 
         # Fans
         elif bid.startswith("fn-"):
-            panel = self._owner(event.button, FansPanel)
+            panel = self._owner(button, FansPanel)
             if panel is None:
                 return
             parts = bid.split("-")
@@ -1108,7 +1193,7 @@ class KlipperTUI(App):
 
         # Motion limits
         elif bid in ("mc-limits-apply", "mc-limits-reset"):
-            panel = self._owner(event.button, MachinePanel)
+            panel = self._owner(button, MachinePanel)
             params = (panel.default_limits() if bid == "mc-limits-reset"
                       else panel.read_limits())
             if params:
@@ -1129,12 +1214,12 @@ class KlipperTUI(App):
 
         # Toolpath viewer
         elif bid.startswith("gv-"):
-            panel = self._owner(event.button, GcodeViewPanel)
+            panel = self._owner(button, GcodeViewPanel)
             if panel is None:
                 return
             if bid == "gv-follow":
                 on = panel.toggle_follow()
-                event.button.label = "Follow" if on else "Held"
+                button.label = "Follow" if on else "Held"
             elif bid == "gv-fit":
                 panel.refit()
             elif bid in ("gv-prev", "gv-next"):
@@ -1153,12 +1238,12 @@ class KlipperTUI(App):
 
         # Material presets
         elif bid == "st-preset-apply":
-            panel = self._owner(event.button, SettingsPanel)
+            panel = self._owner(button, SettingsPanel)
             edited = panel.read_presets()
             if edited is not None:
                 self._save_presets(edited, "presets saved")
         elif bid == "st-preset-add":
-            panel = self._owner(event.button, SettingsPanel)
+            panel = self._owner(button, SettingsPanel)
             addition = panel.new_preset()
             if addition is not None:
                 # Keep any edits already made to the existing rows.
@@ -1169,7 +1254,7 @@ class KlipperTUI(App):
                     panel.clear_new_preset()
                     self._save_presets(edited, f"added {name}")
         elif bid.startswith("st-prm-"):
-            panel = self._owner(event.button, SettingsPanel)
+            panel = self._owner(button, SettingsPanel)
             name = panel.preset_at(int(bid.removeprefix("st-prm-")))
             if name:
                 edited = panel.read_presets() or dict(self.settings.presets)
@@ -1178,7 +1263,7 @@ class KlipperTUI(App):
 
         # Settings
         elif bid in ("st-webcam-apply", "st-webcam-reset"):
-            panel = self._owner(event.button, SettingsPanel)
+            panel = self._owner(button, SettingsPanel)
             field = panel.query_one("#st-webcam-url", Input)
             if bid == "st-webcam-reset":
                 url = self.default_webcam_url
@@ -1213,7 +1298,7 @@ class KlipperTUI(App):
 
         # Speed / flow multipliers
         elif bid.startswith("tn-"):
-            panel = self._owner(event.button, TuningPanel)
+            panel = self._owner(button, TuningPanel)
             _, key, rest = bid.split("-", 2)
             if key not in FACTORS:
                 return
@@ -1229,46 +1314,46 @@ class KlipperTUI(App):
 
         # 3D position
         elif bid in ("ps-left", "ps-right", "ps-up", "ps-down"):
-            panel = self._owner(event.button, PositionPanel)
+            panel = self._owner(button, PositionPanel)
             deltas = {
                 "ps-left": (-0.25, 0.0), "ps-right": (0.25, 0.0),
                 "ps-up": (0.0, 0.15), "ps-down": (0.0, -0.15),
             }
             panel.rotate(*deltas[bid])
         elif bid.startswith("ps-pan-"):
-            panel = self._owner(event.button, PositionPanel)
+            panel = self._owner(button, PositionPanel)
             pans = {
                 "ps-pan-left": (-0.08, 0.0), "ps-pan-right": (0.08, 0.0),
                 "ps-pan-up": (0.0, 0.08), "ps-pan-down": (0.0, -0.08),
             }
             panel.pan_by(*pans[bid])
         elif bid == "ps-model":
-            on = self._owner(event.button, PositionPanel).toggle_model()
-            event.button.label = "Model" if on else "No model"
+            on = self._owner(button, PositionPanel).toggle_model()
+            button.label = "Model" if on else "No model"
         elif bid == "ps-model-clear":
-            self._owner(event.button, PositionPanel).clear_model()
+            self._owner(button, PositionPanel).clear_model()
         elif bid == "ps-zoom-in":
-            self._owner(event.button, PositionPanel).zoom_by(1.25)
+            self._owner(button, PositionPanel).zoom_by(1.25)
         elif bid == "ps-zoom-out":
-            self._owner(event.button, PositionPanel).zoom_by(0.8)
+            self._owner(button, PositionPanel).zoom_by(0.8)
         elif bid == "ps-reset":
-            self._owner(event.button, PositionPanel).reset_view()
+            self._owner(button, PositionPanel).reset_view()
         elif bid == "ps-spin":
-            spinning = self._owner(event.button, PositionPanel).toggle_spin()
-            event.button.label = "Stop" if spinning else "Spin"
-            event.button.set_class(spinning, "-primary")
+            spinning = self._owner(button, PositionPanel).toggle_spin()
+            button.label = "Stop" if spinning else "Spin"
+            button.set_class(spinning, "-primary")
 
         # Webcam
         elif bid == "wc-toggle":
-            running = self._owner(event.button, WebcamPanel).toggle()
-            event.button.label = "Pause" if running else "Resume"
+            running = self._owner(button, WebcamPanel).toggle()
+            button.label = "Pause" if running else "Resume"
         elif bid.startswith("wc-fps-"):
-            self._owner(event.button, WebcamPanel).set_fps(
+            self._owner(button, WebcamPanel).set_fps(
                 int(bid.removeprefix("wc-fps-")))
 
         # Bed mesh
         elif bid == "bm-calibrate":
-            panel = self._owner(event.button, BedMeshPanel)
+            panel = self._owner(button, BedMeshPanel)
             if panel is not None:
                 # Runs in a worker so the homing prompt can be awaited.
                 self.run_worker(self._calibrate_mesh(panel),
