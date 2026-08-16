@@ -185,6 +185,41 @@ It is a coarse picture, not a gcode preview — the sample rate is whatever
 Moonraker pushes, so fine detail is lost. It is enough to watch a part take
 shape.
 
+## Toolpath
+
+The Move tab draws the current layer as the printer works through it: what has
+been laid down so far in the material colour, what is still to come dimmed, and
+the nozzle marked. Follow tracks the printer; `−1`/`+1` hold a layer and step
+through it, and Fit reframes on the layer in view.
+
+The gcode is fetched once per job and cached, then indexed to find where each
+layer begins — only the layer being looked at is parsed, so a thirty-megabyte
+print does not have to be held in memory. Which layer is showing comes from the
+file position Klipper reports, so it matches the printer rather than guessing
+from height. PrusaSlicer, SuperSlicer, and Cura layer markers are understood,
+and a file with no markers is split on its Z moves.
+
+Travel moves are left out. Drawing them buries the shape under straight lines
+between features.
+
+## Z offset
+
+Live babystepping sits under the toolhead controls: nudge in 0.01 or 0.05mm
+steps while a first layer goes down, and the current offset is shown alongside
+the saved probe offset. Reset returns it to zero.
+
+Save folds the live offset into the saved one — `Z_OFFSET_APPLY_PROBE`, or
+`Z_OFFSET_APPLY_ENDSTOP` where there is no probe — and writes it with
+SAVE_CONFIG. That restarts Klipper and stops any print, so it asks first.
+
+## Motion limits
+
+Velocity, square corner velocity, acceleration, and minimum cruise ratio are on
+the Settings tab under Machine. They apply immediately with
+`SET_VELOCITY_LIMIT` and last until the printer restarts; Reset puts back what
+`printer.cfg` says. The cruise ratio is shown as a percentage, as Mainsail does,
+though Klipper carries it as a fraction.
+
 ## After a cancelled print
 
 When a running job is cancelled — from here, from Mainsail, or from the

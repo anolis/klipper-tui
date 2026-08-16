@@ -25,6 +25,7 @@ DASHBOARD_PANELS: dict[str, tuple[str, bool]] = {
     "toolhead": ("Toolhead", False),
     "bedmesh": ("Bed Mesh", False),
     "position": ("Toolhead Position", False),
+    "gcodeview": ("Toolpath", False),
     "webcam": ("Webcam", False),
     "console": ("Console", False),
     "files": ("G-code Files", False),

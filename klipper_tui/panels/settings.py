@@ -7,6 +7,17 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Button, Input, Label, Static
 
 from ..settings import DASHBOARD_PANELS, Settings, config_path
+
+# key -> (toolhead field, label, unit, SET_VELOCITY_LIMIT parameter)
+LIMITS = {
+    "velocity": ("max_velocity", "Velocity", "mm/s", "VELOCITY"),
+    "scv": ("square_corner_velocity", "Square corner velocity", "mm/s",
+            "SQUARE_CORNER_VELOCITY"),
+    "accel": ("max_accel", "Acceleration", "mm/s²", "ACCEL"),
+    "cruise": ("minimum_cruise_ratio", "Min. cruise ratio", "%",
+               "MINIMUM_CRUISE_RATIO"),
+}
+LIMIT_FIELDS = [(k, v[1], v[2]) for k, v in LIMITS.items()]
 from ..theming import all_theme_names
 
 
@@ -17,6 +28,10 @@ class SettingsPanel(Vertical):
         self.settings = settings
         self.webcam_url = webcam_url
         self.default_webcam_url = default_webcam_url
+        # Limit fields the user has touched. Live values must not overwrite an
+        # edit in progress — focus alone is not enough, because clicking Apply
+        # moves focus away before the value is read.
+        self.limits_edited: set[str] = set()
 
     def compose(self) -> ComposeResult:
         yield Label("Dashboard panels", classes="panel-title")
@@ -59,6 +74,21 @@ class SettingsPanel(Vertical):
                 yield Button("", id=f"st-theme-{name}")
                 yield Static(name, classes="setting-label")
         yield Label("Machine", classes="panel-title")
+        yield Static(
+            "[$text-muted]Motion limits, applied live. They last until the "
+            "printer restarts; Reset returns them to printer.cfg.[/]"
+        )
+        for key, label, unit in LIMIT_FIELDS:
+            with Horizontal(classes="btn-row"):
+                yield Static(f"{label}", classes="limit-label")
+                yield Input(id=f"st-lim-{key}", classes="limit-input")
+                yield Static(f"[$text-muted]{unit}[/]", classes="limit-unit")
+        with Horizontal(classes="btn-row"):
+            yield Button("Apply limits", id="st-limits-apply",
+                         classes="-primary")
+            yield Button("Reset", id="st-limits-reset")
+        yield Static("", id="st-limits-note", classes="dim")
+
         yield Static(
             "[$text-muted]Firmware Restart reloads the MCU and is what you "
             "want after a shutdown or a config change. Restart Klipper "
@@ -171,6 +201,88 @@ class SettingsPanel(Vertical):
     def preset_at(self, index: int) -> str | None:
         order = getattr(self, "preset_order", [])
         return order[index] if 0 <= index < len(order) else None
+
+    # -- motion limits ---------------------------------------------------------
+
+    def on_input_changed(self, event) -> None:
+        widget_id = event.input.id or ""
+        if widget_id.startswith("st-lim-"):
+            self.limits_edited.add(widget_id.removeprefix("st-lim-"))
+
+    def update_status(self, status: dict) -> None:
+        """Show the live limits, leaving anything edited alone."""
+        toolhead = status.get("toolhead") or {}
+        settings = ((status.get("configfile") or {}).get("settings") or {})
+        self.limit_defaults = settings.get("printer") or {}
+        for key, (field, _, _, _) in LIMITS.items():
+            value = toolhead.get(field)
+            if value is None:
+                continue
+            try:
+                widget = self.query_one(f"#st-lim-{key}", Input)
+            except Exception:
+                continue
+            if key in self.limits_edited:
+                continue  # an edit is pending; do not clobber it
+            formatted = self._format_limit(key, value)
+            if widget.value != formatted:
+                widget.value = formatted
+                # Setting the value fires Input.Changed, which would otherwise
+                # mark the field as edited by the user.
+                self.limits_edited.discard(key)
+
+    @staticmethod
+    def _format_limit(key: str, value: float) -> str:
+        # Klipper carries the cruise ratio as 0-1; it reads better as a
+        # percentage, which is also how Mainsail shows it.
+        if key == "cruise":
+            return f"{value * 100:g}"
+        return f"{value:g}"
+
+    def clear_limit_edits(self) -> None:
+        self.limits_edited.clear()
+
+    def read_limits(self) -> dict | None:
+        """Collect the edited limits as SET_VELOCITY_LIMIT parameters."""
+        params: dict[str, float] = {}
+        for key, (_, label, _, parameter) in LIMITS.items():
+            try:
+                raw = self.query_one(f"#st-lim-{key}", Input).value.strip()
+            except Exception:
+                continue
+            if not raw:
+                continue
+            try:
+                value = float(raw)
+            except ValueError:
+                self._limits_note(f"[$error]{label} must be a number.[/]")
+                return None
+            if key == "cruise":
+                if not 0 <= value < 100:
+                    self._limits_note(
+                        "[$error]Min. cruise ratio must be 0 or more and "
+                        "under 100%.[/]")
+                    return None
+                value /= 100.0
+            elif value <= 0:
+                self._limits_note(f"[$error]{label} must be above zero.[/]")
+                return None
+            params[parameter] = value
+        return params
+
+    def default_limits(self) -> dict:
+        params = {}
+        for key, (field, _, _, parameter) in LIMITS.items():
+            value = getattr(self, "limit_defaults", {}).get(field)
+            if value is not None:
+                params[parameter] = float(value)
+        return params
+
+    def _limits_note(self, message: str) -> None:
+        try:
+            self.query_one("#st-limits-note", Static).update(message)
+        except Exception:
+            pass
 
     def refresh_themes(self, active: str) -> None:
         for name in all_theme_names():

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
+import httpx
+
 from textual import events, on
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
@@ -23,6 +25,7 @@ from .panels.confirm import ConfirmScreen
 from .panels.console import ConsolePanel
 from .panels.extruder import ExtruderPanel
 from .panels.files import FilesPanel
+from .panels.gcodeview import GcodeViewPanel
 from .panels.offline import OfflineScreen
 from .panels.position import PositionPanel
 from .panels.preheat import PreheatScreen
@@ -30,10 +33,11 @@ from .panels.status import StatusPanel
 from .panels.tuning import FACTORS, TuningPanel
 from .panels.temperature import PRESETS, TemperaturePanel, set_presets
 from .panels.tempgraph import RANGES, TempGraphPanel
-from .panels.toolhead import STEP_SIZES, ToolheadPanel
+from .panels.toolhead import STEP_SIZES, Z_NUDGES, ToolheadPanel
 from .panels.settings import SettingsPanel
 from .panels.webcam import FPS_CHOICES, WebcamPanel
-from .settings import DASHBOARD_PANELS, Settings
+from .gcode import index_layers, index_layers_by_z, read_layer
+from .settings import DASHBOARD_PANELS, Settings, state_path
 from .theming import DEFAULT_THEME, all_theme_names, register as register_themes
 
 
@@ -83,6 +87,8 @@ class KlipperTUI(App):
         self._print_state: str | None = None
         self._job_file: str | None = None
         self._job_meta: dict = {}
+        self._layers: list = []
+        self._gcode_path = None
         self._cooldown_pending = False
         self._offline_screen: OfflineScreen | None = None
         # Commands are queued and sent by a background task. Awaiting a slow
@@ -115,6 +121,7 @@ class KlipperTUI(App):
                 with VerticalScroll():
                     yield ToolheadPanel()
                     yield PositionPanel()
+                    yield GcodeViewPanel()
             with TabPane("Files", id="files"):
                 yield FilesPanel()
             with TabPane("Mesh", id="mesh"):
@@ -151,6 +158,8 @@ class KlipperTUI(App):
             return BedMeshPanel()
         if key == "position":
             return PositionPanel()
+        if key == "gcodeview":
+            return GcodeViewPanel()
         if key == "webcam":
             return WebcamPanel(self.webcam_url, self.renderer)
         if key == "console":
@@ -225,7 +234,8 @@ class KlipperTUI(App):
             for panel in self.query(StatusPanel):
                 panel.update_status(status, self.client.klippy_state)
             for panel_type in (TemperaturePanel, ExtruderPanel, BedMeshPanel,
-                               PositionPanel, TuningPanel):
+                               PositionPanel, TuningPanel, GcodeViewPanel,
+                               SettingsPanel, ToolheadPanel):
                 for panel in self.query(panel_type):
                     panel.update_status(status)
             # A panel can appear on its own tab and on the dashboard at once.
@@ -308,6 +318,11 @@ class KlipperTUI(App):
             return
         self._job_file = filename
         self._job_meta = {}
+        self._layers = []
+        self._gcode_path = None
+        for panel in self.query(GcodeViewPanel):
+            panel.set_layers([])
+            panel.status_text = "No job loaded." if not filename else "Waiting…"
         for panel in self.query(StatusPanel):
             panel.set_job_metadata({})
         if filename:
@@ -315,6 +330,89 @@ class KlipperTUI(App):
                 lambda: self.run_worker(self._load_job_meta(filename),
                                         group="jobmeta", exclusive=True)
             )
+
+    async def _load_toolpath(self, filename: str) -> None:
+        """Fetch the gcode once, index its layers, then keep the view fed."""
+        for panel in self.query(GcodeViewPanel):
+            panel.status_text = "Fetching gcode…"
+
+        try:
+            path = await self._fetch_gcode(filename)
+        except Exception as exc:
+            for panel in self.query(GcodeViewPanel):
+                panel.status_text = f"Could not fetch gcode: {exc}"
+            return
+        if filename != self._job_file:
+            return
+
+        for panel in self.query(GcodeViewPanel):
+            panel.status_text = "Indexing layers…"
+        try:
+            layers = await asyncio.to_thread(index_layers, path)
+            if not layers:
+                layers = await asyncio.to_thread(index_layers_by_z, path)
+        except Exception as exc:
+            for panel in self.query(GcodeViewPanel):
+                panel.status_text = f"Could not read gcode: {exc}"
+            return
+        if filename != self._job_file:
+            return
+
+        self._gcode_path = path
+        self._layers = layers
+        for panel in self.query(GcodeViewPanel):
+            panel.set_layers(layers)
+        self.set_interval(1.0, self._refresh_toolpath)
+        self._refresh_toolpath()
+
+    async def _fetch_gcode(self, filename: str):
+        """Download the gcode, reusing the copy on disk when it still matches."""
+        from urllib.parse import quote
+
+        safe = filename.replace("/", "_")
+        path = state_path(f"gcode/{safe}")
+        expected = self._job_meta.get("size")
+        if path.is_file() and (not expected or path.stat().st_size == expected):
+            return path
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        url = f"{self.client.http_url}/server/files/gcodes/{quote(filename)}"
+        partial = path.with_suffix(path.suffix + ".part")
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, read=120.0)) \
+                as client:
+            async with client.stream("GET", url) as response:
+                response.raise_for_status()
+                with open(partial, "wb") as handle:
+                    async for chunk in response.aiter_bytes(1 << 16):
+                        handle.write(chunk)
+        partial.replace(path)
+        return path
+
+    def _refresh_toolpath(self) -> None:
+        """Parse whichever layer the panels are asking for."""
+        if not self._layers or not self._gcode_path:
+            return
+        for panel in self.query(GcodeViewPanel):
+            wanted = panel.wanted_layer()
+            if wanted is None:
+                continue
+            if panel.layer_index == wanted and panel.toolpath is not None:
+                continue
+            self.run_worker(self._parse_layer(panel, wanted),
+                            group="toolpath", exclusive=True)
+            break
+
+    async def _parse_layer(self, panel, index: int) -> None:
+        try:
+            layer = self._layers[index]
+        except IndexError:
+            return
+        try:
+            toolpath = await asyncio.to_thread(
+                read_layer, self._gcode_path, layer)
+        except Exception:
+            return
+        panel.set_toolpath(index, toolpath)
 
     async def _load_job_meta(self, filename: str) -> None:
         try:
@@ -326,6 +424,8 @@ class KlipperTUI(App):
         self._job_meta = meta or {}
         for panel in self.query(StatusPanel):
             panel.set_job_metadata(self._job_meta)
+        # The toolpath download checks the expected size, so it follows.
+        self.run_worker(self._load_toolpath(filename), group="toolpath")
 
     def _watch_print_state(self, status: dict) -> None:
         """Offer a cooldown when a job stops, however it was cancelled."""
@@ -414,6 +514,32 @@ class KlipperTUI(App):
             await self._machine_restart(firmware=True, confirm=False)
         elif action == "of-restart":
             await self._machine_restart(firmware=False, confirm=False)
+
+    async def _save_z_offset(self, panel) -> None:
+        """Fold the live offset into the saved probe offset and keep it."""
+        if abs(panel.z_offset) < 1e-9:
+            self.notify("No live offset to save", severity="warning",
+                        title="Z offset")
+            return
+        command = panel.z_apply_command()
+        ok = await self.push_screen_wait(ConfirmScreen(
+            "Save Z offset",
+            f"Add the live offset of [b]{panel.z_offset:+.3f}mm[/] to the "
+            f"saved probe offset and write it to printer.cfg?\n\n"
+            f"This runs {command} then SAVE_CONFIG, which restarts Klipper "
+            f"and stops any print in progress.",
+            confirm_label="Save and restart",
+            confirm_variant="-danger",
+        ))
+        if not ok:
+            return
+        self._console_write("write_system", f"{command} then SAVE_CONFIG")
+        try:
+            await self.client.gcode(f"{command}\nSAVE_CONFIG", timeout=60)
+        except MoonrakerError as exc:
+            # SAVE_CONFIG restarts Klipper, so the socket usually drops before
+            # a reply arrives; that is success, not failure.
+            self._console_write("write_system", f"save: {exc}")
 
     async def _machine_restart(self, firmware: bool,
                                confirm: bool = True) -> None:
@@ -711,6 +837,21 @@ class KlipperTUI(App):
             axis = bid.split("-")[1].upper()
             direction = 1 if bid.endswith("pos") else -1
             await self.send(panel.jog_gcode(axis, direction))
+        elif bid.startswith("th-znudge-"):
+            try:
+                nudge = Z_NUDGES[int(bid.removeprefix("th-znudge-"))]
+            except (ValueError, IndexError):
+                return
+            # MOVE=1 applies it straight away rather than at the next move.
+            await self.send(f"SET_GCODE_OFFSET Z_ADJUST={nudge:g} MOVE=1")
+        elif bid == "th-z-reset":
+            await self.send("SET_GCODE_OFFSET Z=0 MOVE=1")
+        elif bid == "th-z-save":
+            panel = self._owner(event.button, ToolheadPanel)
+            if panel is not None:
+                self.run_worker(self._save_z_offset(panel), group="zoffset",
+                                exclusive=True)
+
         elif bid == "th-motors-off":
             await self.send("M84")
         elif bid == "th-ztilt":
@@ -778,6 +919,19 @@ class KlipperTUI(App):
         elif bid == "st-restart":
             self.run_worker(self._restart_job(), group="job", exclusive=True)
 
+        # Motion limits
+        elif bid in ("st-limits-apply", "st-limits-reset"):
+            panel = self._owner(event.button, SettingsPanel)
+            params = (panel.default_limits() if bid == "st-limits-reset"
+                      else panel.read_limits())
+            if params:
+                await self.send("SET_VELOCITY_LIMIT " + " ".join(
+                    f"{name}={value:g}" for name, value in params.items()))
+                panel.clear_limit_edits()
+                panel._limits_note(
+                    "[$success]limits reset to printer.cfg[/]"
+                    if bid == "st-limits-reset" else "[$success]limits applied[/]")
+
         # Machine restarts
         elif bid == "st-firmware-restart":
             self.run_worker(self._machine_restart(firmware=True),
@@ -785,6 +939,19 @@ class KlipperTUI(App):
         elif bid == "st-klipper-restart":
             self.run_worker(self._machine_restart(firmware=False),
                             group="machine", exclusive=True)
+
+        # Toolpath viewer
+        elif bid in ("gv-follow", "gv-prev", "gv-next", "gv-fit"):
+            panel = self._owner(event.button, GcodeViewPanel)
+            if panel is not None:
+                if bid == "gv-follow":
+                    on = panel.toggle_follow()
+                    event.button.label = "Follow" if on else "Held"
+                elif bid == "gv-fit":
+                    panel.refit()
+                else:
+                    panel.step(1 if bid == "gv-next" else -1)
+                self._refresh_toolpath()
 
         # Material presets
         elif bid == "st-preset-apply":

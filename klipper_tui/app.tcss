@@ -441,3 +441,39 @@ OfflineScreen {
 #st-preset-new-name {
     width: 20;
 }
+
+/* --- Toolpath viewer ------------------------------------------------------ */
+
+#gcodeview-panel {
+    height: auto;
+}
+
+#gv-view {
+    height: 30;
+    background: $background;
+    border: round $panel-lighten-2;
+    padding: 0 1;
+}
+
+.on-dashboard #gv-view {
+    height: 22;
+}
+
+/* --- Motion limits -------------------------------------------------------- */
+
+.limit-label {
+    width: 26;
+    height: 3;
+    content-align: left middle;
+    color: $foreground;
+}
+
+.btn-row Input.limit-input {
+    width: 14;
+}
+
+.limit-unit {
+    width: 8;
+    height: 3;
+    content-align: left middle;
+}
