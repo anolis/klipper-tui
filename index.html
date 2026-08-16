@@ -452,6 +452,36 @@
                 </div>
               </div>
             </div>
+
+            <!-- Toolpath: the third panel on the app's Move tab -->
+            <div class="toolpath-panel">
+              <div class="card-title">Toolpath</div>
+              <div class="tui-btn-row">
+                <button type="button" class="tui-btn tui-btn-primary" id="tpFollow">Follow</button>
+                <button type="button" class="tui-btn" id="tpPrev">&minus;1</button>
+                <button type="button" class="tui-btn" id="tpNext">+1</button>
+                <button type="button" class="tui-btn" id="tpZoomIn">+</button>
+                <button type="button" class="tui-btn" id="tpZoomOut">&minus;</button>
+                <button type="button" class="tui-btn" id="tpFit">Fit</button>
+              </div>
+              <div class="tui-btn-row">
+                <span class="dim row-label">Pan</span>
+                <button type="button" class="tui-btn" id="tpPanLeft">&larr;</button>
+                <button type="button" class="tui-btn" id="tpPanRight">&rarr;</button>
+                <button type="button" class="tui-btn" id="tpPanUp">&uarr;</button>
+                <button type="button" class="tui-btn" id="tpPanDown">&darr;</button>
+              </div>
+              <div class="tui-line" id="tpInfo">
+                <span class="dim">Layer</span> <strong id="tpLayer">42</strong><span class="dim">/103</span>
+                &nbsp; <span class="dim">z</span> <strong id="tpZ">8.40</strong>
+                &nbsp; <span class="dim">moves</span> <strong id="tpDone">612</strong><span class="dim" id="tpTotal">/998</span>
+                &nbsp; <span class="ok" id="tpState">following</span>
+                &nbsp; <span class="dim">zoom</span> <span id="tpZoom">1.0</span>&times;
+              </div>
+              <div class="toolpath-canvas-wrap">
+                <canvas id="toolpathCanvas" width="1000" height="420"></canvas>
+              </div>
+            </div>
           </div>
 
           <!-- 4. FILES VIEW -->

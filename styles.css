@@ -2474,3 +2474,37 @@ kbd {
 .hero-note a:hover {
   color: var(--primary-hover);
 }
+
+/* --- Toolpath viewer (demo) ----------------------------------------------- */
+
+.terminal-frame .toolpath-panel {
+  margin-top: 1rem;
+  padding: 0.85rem 1.1rem 1rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+}
+
+.terminal-frame .toolpath-panel .row-label {
+  align-self: center;
+  min-width: 2.5rem;
+  font-size: 0.78rem;
+}
+
+.terminal-frame .toolpath-canvas-wrap {
+  margin-top: 0.7rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  background: var(--bg-page);
+  overflow: hidden;
+}
+
+.terminal-frame #toolpathCanvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  cursor: crosshair;
+}
+
+.terminal-frame .held {
+  color: var(--warning);
+}

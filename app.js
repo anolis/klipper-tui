@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   init3DWireframe();
   initBrailleGraph();
   initBedMesh();
+  initToolpathViewer();
   initWebcamSimulator();
   initShortcutsFilter();
   initLiveClock();
@@ -843,4 +844,249 @@ function initLiveClock() {
 
   updateClock();
   setInterval(updateClock, 1000);
+}
+
+
+/* --------------------------------------------------------------------------
+   9. Toolpath Viewer
+   --------------------------------------------------------------------------
+   The app reads the running gcode over HTTP range requests and draws the
+   current layer in braille, colouring what the nozzle has already laid down
+   differently from what is still ahead of it. There is no gcode here, so the
+   layer is generated: concentric perimeters around a blob plus zig-zag infill,
+   which is what a sliced layer looks like from above.
+   -------------------------------------------------------------------------- */
+function initToolpathViewer() {
+  const canvas = document.getElementById('toolpathCanvas');
+  if (!canvas || !canvas.getContext) return;
+  const ctx = canvas.getContext('2d');
+
+  const TOTAL_LAYERS = 103;
+  let layer = 42;
+  let zoom = 1;
+  let pan = { x: 0, y: 0 };
+  let follow = true;
+  let progress = 0.61;          // fraction of the layer already printed
+
+  /* --- the layer's outline, as a closed loop of points ------------------- */
+
+  function outline(index, inset) {
+    // A blob that changes shape slowly with height, so stepping through
+    // layers looks like stepping through a model rather than a flip-book.
+    const points = [];
+    const wobble = 0.35 + 0.1 * Math.sin(index / 9);
+    const twist = index / 26;
+    for (let i = 0; i < 220; i++) {
+      const t = (i / 220) * Math.PI * 2;
+      const r = 1
+        + wobble * Math.sin(3 * t + twist)
+        + 0.12 * Math.sin(7 * t - twist * 2);
+      points.push([Math.cos(t) * (r - inset), Math.sin(t) * (r - inset)]);
+    }
+    return points;
+  }
+
+  function inside(polygon, x, y) {
+    let hit = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const [xi, yi] = polygon[i];
+      const [xj, yj] = polygon[j];
+      if ((yi > y) !== (yj > y) &&
+          x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
+        hit = !hit;
+      }
+    }
+    return hit;
+  }
+
+  /* --- perimeters, then infill, in the order a slicer emits them ---------- */
+
+  function buildLayer(index) {
+    const strokes = [];
+    for (let shell = 0; shell < 3; shell++) {
+      strokes.push(outline(index, shell * 0.07));
+    }
+
+    const shape = outline(index, 0.21);
+    const angle = (index % 2 ? 45 : -45) * Math.PI / 180;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const step = 0.075;
+    let flip = false;
+    for (let u = -2; u <= 2; u += step) {
+      const run = [];
+      for (let v = -2; v <= 2; v += 0.02) {
+        const x = u * cos - v * sin;
+        const y = u * sin + v * cos;
+        if (inside(shape, x, y)) {
+          run.push([x, y]);
+        } else if (run.length > 1) {
+          strokes.push(flip ? run.slice().reverse() : run.slice());
+          run.length = 0;
+        } else {
+          run.length = 0;
+        }
+      }
+      if (run.length > 1) strokes.push(flip ? run.reverse() : run);
+      flip = !flip;
+    }
+    return strokes;
+  }
+
+  let strokes = buildLayer(layer);
+
+  function totalPoints() {
+    return strokes.reduce((n, s) => n + s.length, 0);
+  }
+
+  /* --- drawing ------------------------------------------------------------ */
+
+  function themeColors() {
+    const style = getComputedStyle(document.documentElement);
+    return {
+      done: style.getPropertyValue('--warning').trim() || '#c08238',
+      todo: style.getPropertyValue('--text-dim').trim() || '#6e5e62',
+      grid: style.getPropertyValue('--border-subtle').trim() || '#2d2024',
+      head: style.getPropertyValue('--accent').trim() || '#c4485a',
+    };
+  }
+
+  function render() {
+    const w = canvas.width;
+    const h = canvas.height;
+    const colors = themeColors();
+    ctx.clearRect(0, 0, w, h);
+
+    const scale = Math.min(w, h * 2) / 4.6 * zoom;
+    const cx = w / 2 + pan.x * scale;
+    const cy = h / 2 + pan.y * scale;
+    const px = (p) => [cx + p[0] * scale, cy - p[1] * scale];
+
+    // A faint bed grid behind the path, as the terminal draws.
+    ctx.strokeStyle = colors.grid;
+    ctx.lineWidth = 1;
+    const gap = scale / 2;
+    ctx.beginPath();
+    for (let x = cx % gap; x < w; x += gap) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
+    for (let y = cy % gap; y < h; y += gap) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
+    ctx.stroke();
+
+    const total = totalPoints();
+    const printed = Math.floor(total * progress);
+
+    let seen = 0;
+    let headAt = null;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    for (const stroke of strokes) {
+      // A stroke can straddle the nozzle: draw the printed part, then the rest.
+      const startIndex = seen;
+      const endIndex = seen + stroke.length;
+      seen = endIndex;
+
+      const cut = Math.max(0, Math.min(stroke.length, printed - startIndex));
+      if (cut > 1) {
+        ctx.strokeStyle = colors.done;
+        ctx.beginPath();
+        stroke.slice(0, cut).forEach((p, i) => {
+          const [sx, sy] = px(p);
+          i ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy);
+        });
+        ctx.stroke();
+        if (printed >= startIndex && printed <= endIndex) {
+          headAt = px(stroke[cut - 1]);
+        }
+      }
+      if (cut < stroke.length) {
+        ctx.strokeStyle = colors.todo;
+        ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        stroke.slice(Math.max(0, cut - 1)).forEach((p, i) => {
+          const [sx, sy] = px(p);
+          i ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy);
+        });
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    if (headAt) {
+      ctx.fillStyle = colors.head;
+      ctx.beginPath();
+      ctx.arc(headAt[0], headAt[1], 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const done = document.getElementById('tpDone');
+    const layerEl = document.getElementById('tpLayer');
+    const zEl = document.getElementById('tpZ');
+    const zoomEl = document.getElementById('tpZoom');
+    const stateEl = document.getElementById('tpState');
+    if (done) done.textContent = printed;
+    if (layerEl) layerEl.textContent = layer;
+    if (zEl) zEl.textContent = (layer * 0.2).toFixed(2);
+    if (zoomEl) zoomEl.textContent = zoom.toFixed(1);
+    if (stateEl) {
+      stateEl.textContent = follow ? 'following' : 'held';
+      stateEl.className = follow ? 'ok' : 'held';
+    }
+    // The move count depends on how the layer was generated, so the total is
+    // written alongside the printed count rather than hardcoded in the markup.
+    const movesTotal = document.getElementById('tpTotal');
+    if (movesTotal) movesTotal.textContent = '/' + total;
+  }
+
+  function reshape() {
+    strokes = buildLayer(layer);
+    render();
+  }
+
+  function step(by) {
+    layer = Math.max(1, Math.min(TOTAL_LAYERS, layer + by));
+    follow = false;
+    reshape();
+  }
+
+  const on = (id, fn) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('click', fn);
+  };
+
+  on('tpPrev', () => step(-1));
+  on('tpNext', () => step(1));
+  on('tpZoomIn', () => { zoom = Math.min(6, zoom * 1.25); render(); });
+  on('tpZoomOut', () => { zoom = Math.max(0.5, zoom / 1.25); render(); });
+  on('tpFit', () => { zoom = 1; pan = { x: 0, y: 0 }; render(); });
+  on('tpPanLeft', () => { pan.x += 0.25 / zoom; render(); });
+  on('tpPanRight', () => { pan.x -= 0.25 / zoom; render(); });
+  on('tpPanUp', () => { pan.y -= 0.25 / zoom; render(); });
+  on('tpPanDown', () => { pan.y += 0.25 / zoom; render(); });
+  on('tpFollow', () => { follow = !follow; render(); });
+
+  // Clicking the view centres what was clicked, as the app does.
+  canvas.addEventListener('click', (event) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / rect.width - 0.5;
+    const y = (event.clientY - rect.top) / rect.height - 0.5;
+    const aspect = canvas.width / canvas.height;
+    pan.x -= x * 4.6 / zoom;
+    pan.y += y * 4.6 / zoom / aspect;
+    render();
+  });
+
+  // The nozzle keeps laying material down, and rolls onto the next layer.
+  setInterval(() => {
+    if (!follow) return;
+    progress += 0.012;
+    if (progress >= 1) {
+      progress = 0;
+      layer = layer >= TOTAL_LAYERS ? 1 : layer + 1;
+      strokes = buildLayer(layer);
+    }
+    render();
+  }, 120);
+
+  render();
 }
