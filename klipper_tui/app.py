@@ -23,6 +23,7 @@ from .panels.confirm import ConfirmScreen
 from .panels.console import ConsolePanel
 from .panels.extruder import ExtruderPanel
 from .panels.files import FilesPanel
+from .panels.offline import OfflineScreen
 from .panels.position import PositionPanel
 from .panels.preheat import PreheatScreen
 from .panels.status import StatusPanel
@@ -81,6 +82,7 @@ class KlipperTUI(App):
         self._restore: dict | None = None
         self._print_state: str | None = None
         self._cooldown_pending = False
+        self._offline_screen: OfflineScreen | None = None
         self._last_files: list | None = None
         self._ws_task: asyncio.Task | None = None
 
@@ -266,6 +268,7 @@ class KlipperTUI(App):
 
     def _handle_conn(self, connected: bool, klippy_state: str) -> None:
         self._track_restart(connected, klippy_state)
+        self.call_later(self._sync_offline_screen, connected, klippy_state)
         try:
             bar = self.query_one("#statusbar", Static)
         except Exception:
@@ -336,7 +339,66 @@ class KlipperTUI(App):
         finally:
             self._cooldown_pending = False
 
-    # -- restoring state across a restart -------------------------------------
+    # -- offline overlay -------------------------------------------------------
+
+    def _sync_offline_screen(self, connected: bool, klippy_state: str) -> None:
+        usable = connected and klippy_state == "ready"
+        if usable:
+            if self._offline_screen is not None:
+                screen, self._offline_screen = self._offline_screen, None
+                try:
+                    screen.dismiss(None)
+                except Exception:
+                    pass
+            return
+
+        if self._offline_screen is not None:
+            # Already up; just keep the reason current.
+            self._offline_screen.refresh_detail(connected, klippy_state)
+            return
+
+        self._offline_screen = OfflineScreen(
+            connected, klippy_state, f"{self.client.host}:{self.client.port}"
+        )
+        self.run_worker(self._show_offline(), group="offline", exclusive=True)
+
+    async def _show_offline(self) -> None:
+        screen = self._offline_screen
+        if screen is None:
+            return
+        action = await self.push_screen_wait(screen)
+        if self._offline_screen is screen:
+            self._offline_screen = None
+        if action == "of-firmware":
+            await self._machine_restart(firmware=True, confirm=False)
+        elif action == "of-restart":
+            await self._machine_restart(firmware=False, confirm=False)
+
+    async def _machine_restart(self, firmware: bool,
+                               confirm: bool = True) -> None:
+        name = "Firmware Restart" if firmware else "Restart Klipper"
+        if confirm:
+            ok = await self.push_screen_wait(ConfirmScreen(
+                name,
+                "This interrupts anything the printer is doing, including a "
+                "running print. Continue?",
+                confirm_label=name,
+                confirm_variant="-danger",
+            ))
+            if not ok:
+                return
+        self._console_write("write_system", f"{name.lower()} requested")
+        try:
+            if firmware:
+                await self.client.firmware_restart()
+            else:
+                await self.client.restart()
+        except MoonrakerError as exc:
+            # The socket normally drops as Klipper goes down, which is not an
+            # error worth reporting.
+            self._console_write("write_system", f"{name}: {exc}")
+
+    # -- restoring job state across a restart ---------------------------------
 
     def _track_restart(self, connected: bool, klippy_state: str) -> None:
         """Notice Klippy leaving and returning, so state can be offered back.
@@ -646,6 +708,24 @@ class KlipperTUI(App):
             on = self.query_one("#tempgraph-panel", TempGraphPanel).toggle_targets()
             event.button.label = "Targets" if on else "No targets"
 
+        # Job controls on the status panel
+        elif bid == "st-pause":
+            await self._job("print_pause", "Paused")
+        elif bid == "st-resume":
+            await self._job("print_resume", "Resumed")
+        elif bid == "st-cancel":
+            await self._job("print_cancel", "Cancelled")
+        elif bid == "st-restart":
+            self.run_worker(self._restart_job(), group="job", exclusive=True)
+
+        # Machine restarts
+        elif bid == "st-firmware-restart":
+            self.run_worker(self._machine_restart(firmware=True),
+                            group="machine", exclusive=True)
+        elif bid == "st-klipper-restart":
+            self.run_worker(self._machine_restart(firmware=False),
+                            group="machine", exclusive=True)
+
         # Settings
         elif bid in ("st-webcam-apply", "st-webcam-reset"):
             panel = self._owner(event.button, SettingsPanel)
@@ -862,6 +942,59 @@ class KlipperTUI(App):
             if chosen:
                 return chosen
         return None
+
+    async def _restart_job(self) -> None:
+        """Stop the current job, load the same file again, and hold it paused."""
+        stats = self.client.status.get("print_stats") or {}
+        filename = stats.get("filename")
+        if not filename:
+            self.notify("No job to restart", severity="warning")
+            return
+
+        ok = await self.push_screen_wait(ConfirmScreen(
+            "Restart job",
+            f"Cancel [b]{filename}[/b], start it again from the beginning, "
+            f"and pause immediately so you can get set before it prints?",
+            confirm_label="Restart job",
+            confirm_variant="-primary",
+        ))
+        if not ok:
+            return
+
+        self._console_write("write_system", f"restarting {filename}")
+        try:
+            if (stats.get("state")) in ("printing", "paused"):
+                await self.client.print_cancel()
+                # Klipper refuses a new job until the old one has finished
+                # unwinding, so wait for the state to settle.
+                if not await self._await_print_state(
+                        ("cancelled", "standby", "complete", "error"), 30.0):
+                    self.notify("Job did not stop in time",
+                                severity="error", title="Restart job")
+                    return
+
+            await self.client.print_start(filename)
+            if not await self._await_print_state(("printing",), 30.0):
+                self.notify("Job did not start in time",
+                            severity="error", title="Restart job")
+                return
+
+            await self.client.print_pause()
+            self.notify(f"{filename} restarted and paused", title="Restart job")
+        except MoonrakerError as exc:
+            self._console_write("write_system", f"error: {exc}")
+            self.notify(str(exc), severity="error", title="Restart job")
+
+    async def _await_print_state(self, wanted: tuple[str, ...],
+                                 timeout: float) -> bool:
+        """Poll the cached status until the job reaches one of these states."""
+        deadline = asyncio.get_running_loop().time() + timeout
+        while asyncio.get_running_loop().time() < deadline:
+            state = (self.client.status.get("print_stats") or {}).get("state")
+            if state in wanted:
+                return True
+            await asyncio.sleep(0.25)
+        return False
 
     async def _start_print(self) -> None:
         filename = self._files_selection()

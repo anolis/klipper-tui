@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from textual.app import ComposeResult
-from textual.containers import Vertical
-from textual.widgets import Label, ProgressBar, Static
+from textual.containers import Horizontal, Vertical
+from textual.widgets import Button, Label, ProgressBar, Static
 
 from ..format import duration, state_markup
 
@@ -22,6 +22,30 @@ class StatusPanel(Vertical):
         yield Static("", id="st-pos")
         yield Static("", id="st-homed")
 
+        with Horizontal(classes="btn-row compact-row"):
+            yield Button("Pause", id="st-pause")
+            yield Button("Resume", id="st-resume", classes="-success")
+            yield Button("Cancel", id="st-cancel", classes="-danger")
+            yield Button("Restart", id="st-restart", classes="-primary")
+
+    def _set_job_buttons(self, state: str, has_file: bool) -> None:
+        """Only offer what the current job state actually allows."""
+        printing = state == "printing"
+        paused = state == "paused"
+        enabled = {
+            "st-pause": printing,
+            "st-resume": paused,
+            "st-cancel": printing or paused,
+            # Restarting needs a file to go back to, but the job itself may
+            # already have stopped.
+            "st-restart": has_file,
+        }
+        for widget_id, on in enabled.items():
+            try:
+                self.query_one(f"#{widget_id}", Button).disabled = not on
+            except Exception:
+                pass
+
     def update_status(self, status: dict, klippy_state: str) -> None:
         stats = status.get("print_stats", {})
         sd = status.get("virtual_sdcard", {})
@@ -29,6 +53,7 @@ class StatusPanel(Vertical):
         gcode_move = status.get("gcode_move", {})
 
         state = stats.get("state") or klippy_state
+        self._set_job_buttons(state, bool(stats.get("filename")))
         self.query_one("#st-state", Static).update(
             f"State  {state_markup(state)}"
         )

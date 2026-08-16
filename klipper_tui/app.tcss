@@ -394,3 +394,15 @@ ConfirmScreen {
     content-align: left middle;
     color: $text-muted;
 }
+
+OfflineScreen {
+    align: center middle;
+}
+
+#offline-box {
+    width: 76;
+    height: auto;
+    padding: 1 2;
+    background: $surface;
+    border: thick $error;
+}

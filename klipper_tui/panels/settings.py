@@ -42,6 +42,17 @@ class SettingsPanel(Vertical):
             with Horizontal(classes="btn-row setting-row"):
                 yield Button("", id=f"st-theme-{name}")
                 yield Static(name, classes="setting-label")
+        yield Label("Machine", classes="panel-title")
+        yield Static(
+            "[$text-muted]Firmware Restart reloads the MCU and is what you "
+            "want after a shutdown or a config change. Restart Klipper "
+            "reloads the host process only.[/]"
+        )
+        with Horizontal(classes="btn-row"):
+            yield Button("Firmware Restart", id="st-firmware-restart",
+                         classes="-danger")
+            yield Button("Restart Klipper", id="st-klipper-restart")
+
         yield Static("", id="st-config-path", classes="dim")
 
     def on_mount(self) -> None:

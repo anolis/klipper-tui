@@ -127,6 +127,28 @@ values and needs to stay comparable between themes. The console resolves
 colours to concrete hex at write time, because `RichLog` renders Rich markup
 and cannot read `$token` styles.
 
+## Job control
+
+Pause, Resume, Cancel, and Restart sit on the Status panel, so they are on the
+dashboard by default. Each is enabled only when it applies — Resume is dead
+while printing, Pause is dead while paused — rather than letting the printer
+reject the command.
+
+**Restart** cancels the running job, starts the same file again from the
+beginning, and pauses it immediately, so you can clear the bed or get set up
+before it lays anything down. It waits for the printer to actually stop before
+restarting, since Klipper refuses a new job while one is unwinding.
+
+## When the printer goes away
+
+If Moonraker becomes unreachable, or Klipper shuts down or errors, an overlay
+explains what happened and stays until the printer is ready again. It offers
+Firmware Restart and Restart Klipper directly, which is usually what a
+shutdown needs. Dismiss it with Escape if you want the UI back.
+
+Both restarts are also on the Settings tab, behind a confirmation, since they
+interrupt a running print.
+
 ## 3D view
 
 The Move tab draws the build volume as a rotating wireframe with the toolhead
