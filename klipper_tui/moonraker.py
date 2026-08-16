@@ -32,9 +32,12 @@ SUBSCRIPTIONS: dict[str, list[str] | None] = {
 # Objects worth subscribing to that only exist under printer-specific names.
 # Which fans a machine has is entirely up to its config, so they are discovered
 # rather than assumed.
+# "exclude_object" has no suffix and matches only itself: it is here rather
+# than in SUBSCRIPTIONS so that printers without the section are not asked for
+# an object they do not have.
 DISCOVERED_PREFIXES = (
     "fan_generic ", "heater_fan ", "controller_fan ", "temperature_fan ",
-    "temperature_sensor ",
+    "temperature_sensor ", "gcode_macro ", "exclude_object",
 )
 
 

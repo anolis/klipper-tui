@@ -498,3 +498,14 @@ OfflineScreen {
 
 /* Widths are set per panel when the row is built, in proportion to what each
    one needs; see PANEL_MIN_WIDTH. */
+
+#macros-panel, #mac-list, #objects-panel, #ob-list {
+    height: auto;
+}
+
+/* The name sits beside its Cancel button rather than under it. */
+#ob-list .setting-label {
+    content-align: left middle;
+    height: 3;
+    padding-left: 1;
+}

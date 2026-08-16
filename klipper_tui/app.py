@@ -23,11 +23,13 @@ from textual.widgets import (
 from .moonraker import MoonrakerClient, MoonrakerError
 from .panels.bedmesh import PROBE_LINE, BedMeshPanel
 from .panels.confirm import ConfirmScreen
-from .panels.console import ConsolePanel
+from .panels.console import COMMON_GCODE, ConsolePanel
 from .panels.extruder import ExtruderPanel
 from .panels.fans import FansPanel, speed_command
 from .panels.files import FilesPanel
 from .panels.machine import MachinePanel
+from .panels.macros import MacrosPanel
+from .panels.objects import ObjectsPanel
 from .panels.gcodeview import GcodeViewPanel
 from .panels.offline import OfflineScreen
 from .panels.position import PositionPanel
@@ -61,7 +63,7 @@ DISRUPTIVE: dict[str, str] = {
     "th-z-neg": "Jog the toolhead",
     "th-z-pos": "Jog the toolhead",
     "th-motors-off": "Disable the motors",
-    "th-ztilt": "Run Z tilt adjust",
+    "th-level": "Level the bed",
     "th-z-save": "Save the Z offset",
     "ex-extrude": "Extrude by hand",
     "ex-retract": "Retract by hand",
@@ -73,6 +75,12 @@ DISRUPTIVE: dict[str, str] = {
     "bm-save": "Save the config",
     "mc-limits-apply": "Change the motion limits",
     "mc-limits-reset": "Reset the motion limits",
+}
+
+# Buttons the panels generate at runtime, so their ids carry an index.
+DISRUPTIVE_PREFIXES: dict[str, str] = {
+    "ob-cancel-": "Cancel that object for the rest of the print",
+    "mac-run-": "Run that macro",
 }
 
 
@@ -128,6 +136,7 @@ class KlipperTUI(App):
         self._toolpath_timer = None
         self._dash_width: int | None = None
         self._last_ui_refresh = 0.0
+        self._commands: list[str] = []
         self._cooldown_pending = False
         self._offline_screen: OfflineScreen | None = None
         # Commands are queued and sent by a background task. Awaiting a slow
@@ -203,6 +212,10 @@ class KlipperTUI(App):
             return MachinePanel()
         if key == "fans":
             return FansPanel()
+        if key == "macros":
+            return MacrosPanel()
+        if key == "objects":
+            return ObjectsPanel()
         if key == "webcam":
             return WebcamPanel(self.webcam_url, self.renderer)
         if key == "console":
@@ -289,6 +302,9 @@ class KlipperTUI(App):
         if self._job_meta:
             for panel in self.query(StatusPanel):
                 panel.set_job_metadata(self._job_meta)
+        if self._commands:
+            for console in self.query(ConsolePanel):
+                console.set_commands(self._commands)
         for panel in self.query(GcodeViewPanel):
             if not panel.gcode_layers and self._layers:
                 panel.set_layers(self._layers)
@@ -361,7 +377,7 @@ class KlipperTUI(App):
             for panel_type in (TemperaturePanel, ExtruderPanel, BedMeshPanel,
                                PositionPanel, TuningPanel, GcodeViewPanel,
                                ToolheadPanel, MachinePanel,
-                               FansPanel):
+                               FansPanel, MacrosPanel, ObjectsPanel):
                 for panel in self.query(panel_type):
                     try:
                         panel.update_status(status)
@@ -907,6 +923,21 @@ class KlipperTUI(App):
     def _on_klippy_ready(self) -> None:
         self.refresh_files()
         self.run_worker(self._seed_graph())
+        self.run_worker(self._load_commands(), group="commands")
+
+    async def _load_commands(self) -> None:
+        """Fetch the gcode command list for console completion."""
+        try:
+            result = await self.client.call("printer.gcode.help")
+        except Exception:
+            return
+        names = sorted(result) if isinstance(result, dict) else []
+        if not names:
+            return
+        names = sorted(set(names) | set(COMMON_GCODE))
+        self._commands = names
+        for console in self.query(ConsolePanel):
+            console.set_commands(names)
 
     def refresh_files(self) -> None:
         self.run_worker(self._load_files(), group="files", exclusive=True)
@@ -1003,6 +1034,20 @@ class KlipperTUI(App):
         await self.send(panel.command_for(key, value))
 
     async def on_key(self, event: events.Key) -> None:
+        if event.key == "tab" and self.focused is not None \
+                and self.focused.id == "console-input":
+            field = self.query_one("#console-input", Input)
+            console = self._owner(field, ConsolePanel)
+            if console is not None:
+                completed, matches = console.complete(field.value)
+                if completed != field.value:
+                    field.value = completed
+                    field.cursor_position = len(completed)
+                if matches:
+                    console.write_system("  ".join(matches[:24]))
+                event.prevent_default()
+                event.stop()
+            return
         if event.key not in ("up", "down"):
             return
         if self.focused is None or self.focused.id != "console-input":
@@ -1019,7 +1064,9 @@ class KlipperTUI(App):
     @on(Button.Pressed)
     async def _button(self, event: Button.Pressed) -> None:
         bid = event.button.id or ""
-        reason = DISRUPTIVE.get(bid)
+        reason = DISRUPTIVE.get(bid) or next(
+            (why for prefix, why in DISRUPTIVE_PREFIXES.items()
+             if bid.startswith(prefix)), None)
         if reason and self._print_is_live():
             # Confirmation needs a worker to await the dialog, so the action is
             # replayed once it comes back.
@@ -1103,8 +1150,10 @@ class KlipperTUI(App):
 
         elif bid == "th-motors-off":
             await self.send("M84")
-        elif bid == "th-ztilt":
-            await self.send("Z_TILT_ADJUST")
+        elif bid == "th-level":
+            panel = self._owner(button, ToolheadPanel)
+            if panel and panel.level_command:
+                await self.send(panel.level_command)
 
         # Extruder
         elif bid in ("ex-extrude", "ex-retract"):
@@ -1167,6 +1216,22 @@ class KlipperTUI(App):
             await self._job("print_cancel", "Cancelled")
         elif bid == "st-restart":
             self.run_worker(self._restart_job(), group="job", exclusive=True)
+
+        # Exclude object
+        elif bid.startswith("ob-cancel-"):
+            panel = self._owner(button, ObjectsPanel)
+            name = panel.object_at(int(bid.removeprefix("ob-cancel-"))) \
+                if panel else None
+            if name:
+                await self.send(f"EXCLUDE_OBJECT NAME={name}")
+
+        # Macros
+        elif bid.startswith("mac-run-"):
+            panel = self._owner(button, MacrosPanel)
+            name = panel.macro_at(int(bid.removeprefix("mac-run-"))) if panel \
+                else None
+            if name:
+                await self.send(name)
 
         # Fans
         elif bid.startswith("fn-"):
@@ -1359,7 +1424,12 @@ class KlipperTUI(App):
                 self.run_worker(self._calibrate_mesh(panel),
                                 group="mesh", exclusive=True)
         elif bid == "bm-load":
-            await self.send("BED_MESH_PROFILE LOAD=default")
+            panel = self._owner(button, BedMeshPanel)
+            command = panel.load_command() if panel else None
+            if command:
+                await self.send(command)
+            else:
+                self.notify("No saved bed mesh profiles", severity="warning")
         elif bid == "bm-save":
             await self.send("SAVE_CONFIG")
         elif bid == "bm-clear":

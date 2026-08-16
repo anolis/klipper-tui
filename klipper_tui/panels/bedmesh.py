@@ -49,6 +49,7 @@ class BedMeshPanel(Vertical):
         self._last_probe_at = 0.0
         self.bounds: tuple[float, float, float, float] | None = None
         self._render_signature: tuple | None = None
+        self.profiles: list[str] = []
 
     def compose(self) -> ComposeResult:
         yield Label("Bed Mesh", classes="panel-title")
@@ -85,6 +86,7 @@ class BedMeshPanel(Vertical):
                     pass
 
         mesh = status.get("bed_mesh", {})
+        self.profiles = sorted(mesh.get("profiles") or {})
         matrix = mesh.get("probed_matrix") or []
 
         if self.live_expected is not None:
@@ -235,6 +237,13 @@ class BedMeshPanel(Vertical):
                     cells.append(f"[{GRADIENT[idx]}]██[/]")
             lines.append("".join(cells))
         heightmap.update("\n".join(lines))
+
+    def load_command(self) -> str | None:
+        """Load a saved profile, preferring one called default."""
+        if not self.profiles:
+            return None
+        name = "default" if "default" in self.profiles else self.profiles[0]
+        return f"BED_MESH_PROFILE LOAD={name}"
 
     def parse_count(self) -> tuple[int, int] | None:
         """Read the probe count field as an (x, y) pair."""

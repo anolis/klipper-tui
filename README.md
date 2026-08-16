@@ -11,12 +11,27 @@ Moonraker is what Mainsail and Fluidd talk to as well, so if either of those
 works in your browser, this will work too. Nothing is installed on the printer
 itself; this is a client you run on your own machine.
 
+<img src="docs/screenshots/dashboard.svg" alt="The dashboard: status, temperatures, temperature history, speed and flow" width="100%">
+
 **What you need**
 
 - A printer running Klipper with Moonraker, reachable over the network.
 - Its address — the same host you type into your browser for Mainsail, e.g.
   `mainsailos.local` or `192.168.1.50`.
 - Python 3.10 or newer on the machine you run this from.
+
+## Screenshots
+
+Every one of these is a real session against a real printer, captured mid-print.
+
+| | |
+|---|---|
+| <img src="docs/screenshots/toolpath.svg" alt="Toolpath viewer" width="100%"> | <img src="docs/screenshots/move.svg" alt="Toolhead position in 3D" width="100%"> |
+| **Toolpath** — the current layer as it is drawn, printed moves ahead of the nozzle in a different colour. | **Toolhead position** — the build volume and the model on the bed, rotatable. |
+| <img src="docs/screenshots/mesh.svg" alt="Bed mesh heightmap" width="100%"> | <img src="docs/screenshots/graph.svg" alt="Temperature history" width="100%"> |
+| **Bed mesh** — the probed heightmap, and a button to reprobe it. | **Temperature history** — the last ten minutes, hotend and bed. |
+| <img src="docs/screenshots/files.svg" alt="File browser" width="100%"> | <img src="docs/screenshots/console.svg" alt="Gcode console" width="100%"> |
+| **Files** — sorted by date, double-click to print. | **Console** — gcode in, printer responses out, with tab completion. |
 
 ## Install
 
@@ -55,6 +70,14 @@ Use `-p/--port` if Moonraker is not on 7125.
 | `s` | Settings | Dashboard panels, presets, theme, webcam URL, restarts |
 
 `Ctrl+E` sends an emergency stop. `t` cycles themes. `q` quits.
+
+## Console
+
+Type gcode, get the printer's replies. **Tab** completes the command name from
+what the printer actually supports — the extended commands it reports, plus the
+plain G and M codes — and completing an ambiguous prefix fills in as far as the
+candidates agree and lists them. Up and down walk back through what you have
+sent.
 
 ## Themes
 
@@ -254,6 +277,45 @@ a `fan_generic` takes `SET_FAN_SPEED`. Fans Klipper runs itself — `heater_fan`
 automatic, with no controls, because setting them by hand would just be
 overridden.
 
+## Macros
+
+Every `[gcode_macro]` in your config gets a button, discovered from the printer
+rather than configured here — so whatever you have written is already there.
+
+Two kinds are left out. Macros whose name starts with an underscore are the
+convention for helpers meant to be called by other macros rather than by a
+person, and `PAUSE`, `RESUME` and `CANCEL_PRINT` are already the job control
+buttons on the status panel.
+
+Running a macro mid-print asks for confirmation first, since a macro can do
+anything at all.
+
+## Cancelling one object
+
+If your config has `[exclude_object]` and the file was sliced with object
+labelling turned on, the Objects panel lists what is on the plate and lets you
+drop one that has failed while the rest carry on. This is the same
+`EXCLUDE_OBJECT` that Mainsail's object map drives.
+
+Without `[exclude_object]`, the panel says so instead of pretending. Adding it
+is two lines in `printer.cfg`:
+
+```ini
+[exclude_object]
+```
+
+and, in Moonraker's `moonraker.conf`:
+
+```ini
+[file_manager]
+enable_object_processing: True
+```
+
+The slicer has to label the objects too — in PrusaSlicer and OrcaSlicer this is
+"Label objects" under Output options, set to *Firmware-specific*.
+
+Cancelling an object cannot be undone, so it asks first.
+
 ## Motion limits
 
 Velocity, square corner velocity, acceleration, and minimum cruise ratio sit on
@@ -264,6 +326,14 @@ fraction.
 
 Like any panel it can be turned off on the Settings tab, which keeps the
 restart controls.
+
+## Levelling
+
+A levelling button appears on the Toolhead panel only if your printer has
+something to level, and says what it will do: **Z Tilt** for `[z_tilt]`,
+**Quad Gantry** for `[quad_gantry_level]`, **Screw Tilt** for
+`[screws_tilt_adjust]`. A bed-slinger with none of those does not get a button
+for a command its firmware would only reject.
 
 ## After a cancelled print
 
@@ -324,6 +394,10 @@ previous mesh. Points probed before it joined are not shown, and it says so.
 The display returns to the saved mesh once the run finishes, or if probing
 stops without producing one.
 
+Load Profile loads the mesh you actually have. If your config saved a single
+profile under some name other than `default`, that is the one it loads; with
+several, `default` wins if it exists and otherwise the first by name.
+
 Klipper's own limits are checked before anything is sent — a minimum of 3 per
 axis, `lagrange` cannot exceed 6, and `bicubic` needs at least 4 per axis. For
 grids larger than 6, set `algorithm: bicubic` in your `[bed_mesh]` section.
@@ -358,6 +432,13 @@ depends entirely on the terminal:
 `--render auto` (the default) detects support and picks the best option.
 **gnome-terminal has no sixel support**, so it falls back to half-blocks;
 run under konsole or `xterm -ti vt340` for a true sixel image.
+
+On kitty and ghostty the frame is sent as raw pixels rather than a PNG, which
+is the difference between 38ms and 2ms of encoding for every frame — most of
+what the camera costs. The tradeoff is bandwidth: raw is about 1.4MB a frame
+against 600KB compressed, which is nothing down a pipe to a local terminal and
+rude over a slow link, so it turns itself off when the session is over ssh. Set
+`KLIPPER_TUI_RAW_TGP=1` to force it on anyway, or `=0` to always send PNGs.
 
 ### Pointing it at your camera
 

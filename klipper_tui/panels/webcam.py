@@ -9,8 +9,10 @@ them and falls back to unicode blocks where it does not.
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
 import io
+import os
 import time
 
 import httpx
@@ -58,7 +60,59 @@ try:
         PILImage.register_save("PNG", save)
         PngImagePlugin._klipper_tui_fast = True
 
+    def _use_raw_tgp() -> None:
+        """Hand kitty raw pixels instead of a PNG.
+
+        The kitty graphics protocol takes uncompressed RGB (f=24) as happily as
+        it takes a PNG, and skipping the encoder is the difference between 38ms
+        and 2ms for a 800x450 frame — most of what the camera costs.
+
+        The tradeoff is size: base64 raw is around 1.4MB a frame against 600KB
+        for a PNG, which is nothing down a pipe to a local terminal but rude
+        over a slow ssh session. So this stays off when the session is remote,
+        and KLIPPER_TUI_RAW_TGP forces it either way.
+        """
+        forced = os.environ.get("KLIPPER_TUI_RAW_TGP", "").strip().lower()
+        if forced in ("0", "false", "no"):
+            return
+        remote = bool(os.environ.get("SSH_CONNECTION") or
+                      os.environ.get("SSH_CLIENT"))
+        if remote and forced not in ("1", "true", "yes"):
+            return
+
+        from textual_image.renderable import tgp
+
+        if getattr(tgp, "_klipper_tui_raw", False):
+            return
+
+        def send(self, width: int, height: int) -> None:
+            self.terminal_image_id = next(tgp.Image._image_id_counter)
+            frame = self._image_data.scaled(width, height).pil_image
+            if frame.mode != "RGB":
+                frame = frame.convert("RGB")
+            data = base64.standard_b64encode(frame.tobytes()).decode("ascii")
+            # Only the first chunk carries the format and the pixel
+            # dimensions; the rest are continuations.
+            head: dict = {"f": 24, "s": frame.width, "v": frame.height, "q": 2}
+            while data:
+                chunk, data = data[:4096], data[4096:]
+                tgp._send_tgp_message(
+                    i=self.terminal_image_id,
+                    m=1 if data else 0,
+                    payload=chunk,
+                    **head,
+                )
+                head = {}
+
+        tgp.Image._send_image_to_terminal = send
+        tgp._klipper_tui_raw = True
+
     _use_fast_png()
+    try:
+        _use_raw_tgp()
+    except Exception:
+        # An upstream rename costs the speedup, not the camera.
+        pass
 
     RENDERERS = {
         "auto": Image,

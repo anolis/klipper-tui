@@ -26,7 +26,7 @@ class FakeClient:
 MUST_GUARD = [
     "th-home-all", "th-home-x", "th-home-y", "th-home-z",
     "th-x-neg", "th-x-pos", "th-y-neg", "th-y-pos", "th-z-neg", "th-z-pos",
-    "th-motors-off", "th-ztilt", "th-z-save",
+    "th-motors-off", "th-level", "th-z-save",
     "ex-extrude", "ex-retract", "ex-load", "ex-unload",
     "bm-calibrate", "bm-clear", "bm-save",
 ]

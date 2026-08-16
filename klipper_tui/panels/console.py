@@ -7,6 +7,16 @@ from textual.containers import Vertical
 from textual.widgets import Input, RichLog
 
 
+# printer.gcode.help lists the extended commands, but not the plain G/M codes:
+# Klipper registers those without help text. They are the ones people type most,
+# so completion would be missing the obvious without this.
+COMMON_GCODE = [
+    "G0", "G1", "G4", "G28", "G90", "G91", "G92",
+    "M18", "M82", "M83", "M84", "M104", "M105", "M106", "M107", "M109",
+    "M112", "M114", "M115", "M117", "M140", "M190", "M204", "M220", "M221",
+]
+
+
 class ConsolePanel(Vertical):
     """Console output.
 
@@ -19,6 +29,7 @@ class ConsolePanel(Vertical):
         super().__init__(id="console-panel")
         self._history: list[str] = []
         self._hist_pos = 0
+        self.commands: list[str] = []
 
     def compose(self) -> ComposeResult:
         yield RichLog(id="console-log", markup=True, wrap=True, highlight=False)
@@ -65,6 +76,35 @@ class ConsolePanel(Vertical):
         self.query_one("#console-log", RichLog).write(
             f"[{warning}]{self._esc(text)}[/]"
         )
+
+    # -- completion --------------------------------------------------------------
+
+    def set_commands(self, commands: list[str]) -> None:
+        self.commands = sorted(set(commands))
+
+    def complete(self, text: str) -> tuple[str, list[str]]:
+        """Complete a partly typed command.
+
+        Returns what the field should now contain and any remaining
+        candidates. Only the first word is completed: everything after it is
+        arguments, which differ per command.
+        """
+        if not text or " " in text.strip():
+            return text, []
+        prefix = text.strip().upper()
+        matches = [c for c in self.commands if c.upper().startswith(prefix)]
+        if not matches:
+            return text, []
+        if len(matches) == 1:
+            return matches[0] + " ", []
+        # Fill in as far as every candidate agrees, then show the choices.
+        # The shared part is never shorter than what was typed, so this also
+        # fixes up the case of a lowercase command.
+        shared = matches[0]
+        for candidate in matches[1:]:
+            while not candidate.upper().startswith(shared.upper()):
+                shared = shared[:-1]
+        return (shared if len(shared) >= len(prefix) else text), matches
 
     # -- history ---------------------------------------------------------------
 

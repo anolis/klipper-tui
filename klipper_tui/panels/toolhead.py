@@ -20,6 +20,7 @@ class ToolheadPanel(Vertical):
         super().__init__(id="toolhead-panel", classes="panel")
         self.z_offset = 0.0
         self.has_probe = False
+        self.level_command: str | None = None
 
     def compose(self) -> ComposeResult:
         yield Label("Toolhead", classes="panel-title")
@@ -45,7 +46,8 @@ class ToolheadPanel(Vertical):
 
         with Horizontal(classes="btn-row"):
             yield Button("Motors Off", id="th-motors-off", classes="-danger")
-            yield Button("Quad/Z Tilt", id="th-ztilt")
+            # Relabelled or hidden once the printer says what it supports.
+            yield Button("Level", id="th-level")
 
         yield Label("Z offset", classes="panel-title")
         yield Static("", id="th-zoffset")
@@ -66,6 +68,7 @@ class ToolheadPanel(Vertical):
             pass
 
     def update_status(self, status: dict) -> None:
+        self._update_levelling(status)
         move = status.get("gcode_move") or {}
         origin = move.get("homing_origin") or [0, 0, 0, 0]
         self.z_offset = float(origin[2]) if len(origin) > 2 else 0.0
@@ -91,6 +94,29 @@ class ToolheadPanel(Vertical):
             f"[$text-muted]live offset[/] [{colour} b]{self.z_offset:+.3f}[/]mm"
             f"{stored}"
         )
+
+    def _update_levelling(self, status: dict) -> None:
+        """Offer whichever bed levelling this printer actually has.
+
+        Z_TILT_ADJUST only exists with [z_tilt] and QUAD_GANTRY_LEVEL only with
+        [quad_gantry_level]; a printer with neither — most bed slingers — would
+        just get an error from a button that should not be there.
+        """
+        if "z_tilt" in status:
+            self.level_command, label = "Z_TILT_ADJUST", "Z Tilt"
+        elif "quad_gantry_level" in status:
+            self.level_command, label = "QUAD_GANTRY_LEVEL", "Quad Gantry"
+        elif "screws_tilt_adjust" in status:
+            self.level_command, label = "SCREWS_TILT_CALCULATE", "Screw Tilt"
+        else:
+            self.level_command, label = None, ""
+        try:
+            button = self.query_one("#th-level", Button)
+        except Exception:
+            return
+        button.display = bool(self.level_command)
+        if self.level_command:
+            button.label = label
 
     def z_apply_command(self) -> str:
         """Fold the live offset into the saved one."""
