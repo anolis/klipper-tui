@@ -26,11 +26,13 @@ class TuningPanel(Vertical):
 
         for key, (label, _, presets) in FACTORS.items():
             yield Static("", id=f"tn-{key}-bar")
+            # Split so the row still fits a narrow terminal.
+            with Horizontal(classes="btn-row compact-row"):
+                for p in presets:
+                    yield Button(f"{p}%", id=f"tn-{key}-set-{p}")
             with Horizontal(classes="btn-row compact-row"):
                 yield Button("−5", id=f"tn-{key}-down")
                 yield Button("+5", id=f"tn-{key}-up")
-                for p in presets:
-                    yield Button(f"{p}%", id=f"tn-{key}-set-{p}")
                 yield Input(placeholder=f"{label} %", id=f"tn-{key}-input",
                             type="integer")
 

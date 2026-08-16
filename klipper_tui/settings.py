@@ -18,21 +18,24 @@ DEFAULT_PRESETS: dict[str, tuple[int, int]] = {
 # Narrowest width in columns at which a panel is still comfortable. The
 # dashboard packs as many side by side as the terminal allows, so these decide
 # what pairs up and what keeps a row to itself.
+# These also weight the split: a row divides its width in proportion to them,
+# so a panel needing half again as much as its neighbour gets it rather than an
+# equal share it would overflow.
 PANEL_MIN_WIDTH: dict[str, int] = {
-    "status": 44,
-    "temperature": 44,
-    "machine": 48,
-    "tuning": 52,
-    "extruder": 56,
-    "toolhead": 58,
-    "fans": 70,
-    "tempgraph": 52,
-    "bedmesh": 56,
-    "gcodeview": 56,
-    "position": 56,
-    "console": 48,
-    "files": 60,
-    "webcam": 52,
+    "status": 60,
+    "temperature": 68,
+    "machine": 68,
+    "tuning": 70,
+    "extruder": 66,
+    "toolhead": 62,
+    "fans": 66,
+    "tempgraph": 56,
+    "bedmesh": 60,
+    "gcodeview": 58,
+    "position": 58,
+    "console": 50,
+    "files": 62,
+    "webcam": 60,
 }
 
 # key -> (label, default visible on the dashboard)

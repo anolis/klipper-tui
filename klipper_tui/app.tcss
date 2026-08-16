@@ -496,6 +496,5 @@ OfflineScreen {
     width: 100%;
 }
 
-.dash-row > .on-dashboard {
-    width: 1fr;
-}
+/* Widths are set per panel when the row is built, in proportion to what each
+   one needs; see PANEL_MIN_WIDTH. */

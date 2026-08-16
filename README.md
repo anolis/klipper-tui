@@ -315,8 +315,10 @@ one that is switched off does no work. Settings are saved to
 **The layout follows the width of the terminal.** Panels are packed side by
 side as far as they will comfortably go, so a wide window shows two or three
 across and a narrow one falls back to a single column. Each panel declares the
-narrowest width it is still readable at, which is what decides where the breaks
-fall; resizing the terminal reflows it.
+narrowest width it is still readable at, which decides both where the breaks
+fall and how a shared row is divided — a panel needing half again as much as
+its neighbour gets it, rather than an equal slice it would overflow. Resizing
+the terminal reflows the whole thing.
 
 ## Webcam rendering
 

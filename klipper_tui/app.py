@@ -208,6 +208,10 @@ class KlipperTUI(App):
             if len(built) == 1:
                 widgets.append(built[0])
             else:
+                # Share the row in proportion to what each panel needs, so a
+                # wider one is not squeezed into an equal slice it overflows.
+                for key, panel in zip(row, built):
+                    panel.styles.width = f"{PANEL_MIN_WIDTH.get(key, 56)}fr"
                 widgets.append(Horizontal(*built, classes="dash-row"))
         if widgets:
             # Not awaited: during start-up the app is still inside its own

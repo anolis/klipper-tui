@@ -100,16 +100,20 @@ class FansPanel(Vertical):
             rows.append(Static("", id=f"fn-bar-{index}"))
             if not controllable(name):
                 continue
-            buttons = [Button("−10", id=f"fn-down-{index}"),
-                       Button("+10", id=f"fn-up-{index}")]
-            buttons += [Button(f"{p}%", id=f"fn-set-{index}-{p}")
-                        for p in PRESETS]
-            buttons += [
+            # Two shorter rows rather than one long one: a single row of all
+            # of these does not fit an 80-column terminal at any split.
+            rows.append(Horizontal(
+                *[Button(f"{p}%", id=f"fn-set-{index}-{p}") for p in PRESETS],
+                classes="btn-row compact-row",
+            ))
+            rows.append(Horizontal(
+                Button("−10", id=f"fn-down-{index}"),
+                Button("+10", id=f"fn-up-{index}"),
                 Input(placeholder="%", id=f"fn-in-{index}",
                       classes="fan-input", type="number"),
                 Button("Set", id=f"fn-apply-{index}", classes="-primary"),
-            ]
-            rows.append(Horizontal(*buttons, classes="btn-row compact-row"))
+                classes="btn-row compact-row",
+            ))
         if rows:
             container.mount(*rows)
 
