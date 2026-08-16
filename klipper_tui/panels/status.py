@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Button, Label, ProgressBar, Static
+from textual.widgets import Button, Label, Static
 
 from datetime import datetime, timedelta
 
@@ -19,7 +19,7 @@ class StatusPanel(Vertical):
         yield Label("Status", classes="panel-title")
         yield Static("", id="st-state")
         yield Static("", id="st-file")
-        yield ProgressBar(total=100, show_eta=False, id="st-progress")
+        yield Static("", id="st-progress")
         yield Static("", id="st-times")
         yield Static("", id="st-pos")
         yield Static("", id="st-homed")
@@ -29,6 +29,22 @@ class StatusPanel(Vertical):
             yield Button("Resume", id="st-resume", classes="-success")
             yield Button("Cancel", id="st-cancel", classes="-danger")
             yield Button("Restart", id="st-restart", classes="-primary")
+
+    @staticmethod
+    def _progress_bar(percent: float, state: str) -> str:
+        """A filled bar, matching the fan and speed bars elsewhere."""
+        width = 34
+        filled = max(0, min(width, int(round(percent / 100 * width))))
+        colour = {
+            "printing": "$accent",
+            "paused": "$warning",
+            "complete": "$success",
+            "cancelled": "$error",
+            "error": "$error",
+        }.get(state.lower(), "$text-muted")
+        return (f"[{colour}]{'█' * filled}[/]"
+                f"[$panel-lighten-2]{'░' * (width - filled)}[/] "
+                f"[b]{percent:5.1f}%[/b]")
 
     def set_job_metadata(self, meta: dict) -> None:
         self.job_meta = meta or {}
@@ -92,7 +108,9 @@ class StatusPanel(Vertical):
         )
 
         progress = (sd.get("progress") or 0.0) * 100
-        self.query_one("#st-progress", ProgressBar).update(progress=progress)
+        self.query_one("#st-progress", Static).update(
+            self._progress_bar(progress, state)
+        )
 
         elapsed = stats.get("print_duration") or 0
         remaining, source = self._remaining(stats, sd, elapsed, progress)

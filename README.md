@@ -312,6 +312,12 @@ them on the Settings tab. Panels are created and destroyed as you toggle, so
 one that is switched off does no work. Settings are saved to
 `$XDG_CONFIG_HOME/klipper-tui/settings.json`.
 
+**The layout follows the width of the terminal.** Panels are packed side by
+side as far as they will comfortably go, so a wide window shows two or three
+across and a narrow one falls back to a single column. Each panel declares the
+narrowest width it is still readable at, which is what decides where the breaks
+fall; resizing the terminal reflows it.
+
 ## Webcam rendering
 
 The webcam draws real images with

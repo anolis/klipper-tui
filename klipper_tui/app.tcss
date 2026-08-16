@@ -489,3 +489,13 @@ OfflineScreen {
 .btn-row Input.fan-input {
     width: 9;
 }
+
+/* Panels packed side by side share the row evenly. */
+.dash-row {
+    height: auto;
+    width: 100%;
+}
+
+.dash-row > .on-dashboard {
+    width: 1fr;
+}

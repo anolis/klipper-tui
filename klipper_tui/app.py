@@ -39,7 +39,8 @@ from .panels.toolhead import STEP_SIZES, Z_NUDGES, ToolheadPanel
 from .panels.settings import SettingsPanel
 from .panels.webcam import FPS_CHOICES, WebcamPanel
 from .gcode import index_layers, index_layers_by_z, read_layer
-from .settings import DASHBOARD_PANELS, Settings, state_path
+from .settings import (DASHBOARD_PANELS, PANEL_MIN_WIDTH, Settings,
+                       state_path)
 from .theming import DEFAULT_THEME, all_theme_names, register as register_themes
 
 
@@ -93,6 +94,7 @@ class KlipperTUI(App):
         self._gcode_path = None
         self._download_done = 0
         self._toolpath_timer = None
+        self._dash_width: int | None = None
         self._cooldown_pending = False
         self._offline_screen: OfflineScreen | None = None
         # Commands are queued and sent by a background task. Awaiting a slow
@@ -176,7 +178,7 @@ class KlipperTUI(App):
             return FilesPanel()
         return None
 
-    async def rebuild_dashboard(self) -> None:
+    async def rebuild_dashboard(self, width: int | None = None) -> None:
         """Remount the dashboard from the saved panel selection.
 
         Panels are created and destroyed rather than merely hidden, so a panel
@@ -188,18 +190,54 @@ class KlipperTUI(App):
         # Removal must be awaited or the replacements collide on widget ids.
         await container.remove_children()
 
-        panels = []
-        for key in DASHBOARD_PANELS:
-            if self.settings.visible(key):
+        chosen = [key for key in DASHBOARD_PANELS if self.settings.visible(key)]
+        self._dash_width = width or container.size.width or self.size.width
+        rows = self._pack_dashboard(chosen, self._dash_width)
+
+        widgets = []
+        for row in rows:
+            built = []
+            for key in row:
                 panel = self._make_panel(key)
-                if panel is not None:
-                    panel.add_class("on-dashboard")
-                    panels.append(panel)
-        if panels:
+                if panel is None:
+                    continue
+                panel.add_class("on-dashboard")
+                built.append(panel)
+            if not built:
+                continue
+            if len(built) == 1:
+                widgets.append(built[0])
+            else:
+                widgets.append(Horizontal(*built, classes="dash-row"))
+        if widgets:
             # Not awaited: during start-up the app is still inside its own
             # mount pipeline, and waiting on a child mount never returns.
-            container.mount(*panels)
+            container.mount(*widgets)
         self.call_after_refresh(self._prime_new_panels)
+
+    @staticmethod
+    def _pack_dashboard(keys: list[str], available: int) -> list[list[str]]:
+        """Group panels into rows that fit the width on offer.
+
+        Panels keep their configured order; each row takes as many as will sit
+        comfortably side by side, so a wide terminal shows several across and a
+        narrow one falls back to a single column.
+        """
+        # Borders and the gap between panels.
+        usable = max(20, available - 2)
+        rows: list[list[str]] = []
+        row: list[str] = []
+        used = 0
+        for key in keys:
+            need = PANEL_MIN_WIDTH.get(key, 56)
+            if row and used + need > usable:
+                rows.append(row)
+                row, used = [], 0
+            row.append(key)
+            used += need
+        if row:
+            rows.append(row)
+        return rows
 
     def _prime_new_panels(self) -> None:
         """Give freshly mounted panels the state they missed."""
@@ -235,6 +273,19 @@ class KlipperTUI(App):
         self.client.on_connection_change(self._handle_conn)
         self._ws_task = asyncio.create_task(self.client.run())
         self._gcode_task = asyncio.create_task(self._gcode_pump())
+
+    def on_resize(self, event) -> None:
+        width = event.size.width
+        previous = getattr(self, "_dash_width", None)
+        if previous is None:
+            return
+        # Only rebuild when the packing would actually differ, since a rebuild
+        # throws away panel state.
+        chosen = [k for k in DASHBOARD_PANELS if self.settings.visible(k)]
+        if (self._pack_dashboard(chosen, width)
+                != self._pack_dashboard(chosen, previous)):
+            self.run_worker(self.rebuild_dashboard(width), group="dashboard",
+                            exclusive=True)
 
     async def on_unmount(self) -> None:
         for task in (self._ws_task, self._gcode_task):
