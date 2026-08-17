@@ -42,7 +42,7 @@ from .panels.toolhead import STEP_SIZES, Z_NUDGES, ToolheadPanel
 from .panels.settings import SettingsPanel
 from .panels.webcam import FPS_CHOICES, WebcamPanel
 from .gcode import (count_instructions, index_layers, index_layers_by_z,
-                    layer_for_position, read_layer)
+                    read_layer)
 from . import estimate
 from .settings import (DASHBOARD_PANELS, PANEL_MIN_WIDTH, Settings,
                        state_path)
@@ -147,8 +147,6 @@ class KlipperTUI(App):
         self.estimator = estimate.Estimator()
         # Gcode commands in the running job, counted once the file is here.
         self.instruction_total: int | None = None
-        # Layers a minute, which is the rate a person can sanity-check.
-        self.layer_rate = estimate.LayerRate()
         self._cooldown_pending = False
         self._offline_screen: OfflineScreen | None = None
         # Commands are queued and sent by a background task. Awaiting a slow
@@ -388,13 +386,8 @@ class KlipperTUI(App):
             sd = status.get("virtual_sdcard") or {}
             stats = status.get("print_stats") or {}
             if (stats.get("state") or "") == "printing":
-                now = time.monotonic()
-                self.estimator.record(now, float(sd.get("progress") or 0.0))
-                if self._layers:
-                    position = int(sd.get("file_position") or 0)
-                    self.layer_rate.record(
-                        now, layer_for_position(self._layers, position),
-                        len(self._layers))
+                self.estimator.record(time.monotonic(),
+                                      float(sd.get("progress") or 0.0))
         except Exception:
             pass
 
@@ -532,7 +525,6 @@ class KlipperTUI(App):
         self._job_file = filename
         self._job_meta = {}
         self.estimator.reset()
-        self.layer_rate.reset()
         self.instruction_total = None
         self._layers = []
         self._gcode_path = None

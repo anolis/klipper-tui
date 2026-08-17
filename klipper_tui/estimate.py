@@ -32,12 +32,6 @@ MIN_SPAN = 20.0
 # paused job from claiming an absurd remaining time.
 MIN_PROGRESS = 1e-5
 
-# How many recent layer changes the layer rate is taken over. Layer times vary
-# a lot — a tall thin section flies past, a wide one crawls — so a handful of
-# them averages out the shape of the model without averaging away a genuine
-# change of pace.
-LAYER_HISTORY = 12
-
 
 class Estimator:
     """Projects a finish time from how fast the file is actually being read."""
@@ -125,62 +119,3 @@ def best(measured: float | None, slicer: float | None,
         return max(0.0, elapsed * (1 / progress - 1)), "file"
     return 0.0, ""
 
-
-class LayerRate:
-    """How fast layers are actually going by, and what that implies.
-
-    Layers are the unit the work happens in, and the unit people think in, so
-    a rate expressed in layers a minute is easier to sanity-check than one in
-    bytes a second. It is also less easily fooled: gcode density varies wildly
-    between a sparse infill layer and a dense top surface, so file position
-    can crawl while the print is moving along, and vice versa.
-
-    Only layer *changes* are timed. Sampling the current layer every quarter
-    second would mostly measure how long we have been sitting on one layer.
-    """
-
-    def __init__(self, history: int = LAYER_HISTORY) -> None:
-        self.history = history
-        self._changes: deque[tuple[float, int]] = deque(maxlen=history)
-        self._current: int | None = None
-        self.total: int | None = None
-
-    def reset(self) -> None:
-        self._changes.clear()
-        self._current = None
-        self.total = None
-
-    def record(self, now: float, layer: int | None, total: int | None) -> None:
-        if layer is None or total is None or total <= 0:
-            return
-        # Going backwards means a different job, or the same one restarted.
-        if self._current is not None and layer < self._current:
-            self.reset()
-        self.total = total
-        if layer != self._current:
-            self._current = layer
-            self._changes.append((now, layer))
-
-    @property
-    def current(self) -> int | None:
-        return self._current
-
-    def per_minute(self) -> float | None:
-        """Layers a minute over the recent history, or None if unknown."""
-        if len(self._changes) < 2:
-            return None
-        (t0, l0), (t1, l1) = self._changes[0], self._changes[-1]
-        span = t1 - t0
-        if span <= 0 or l1 <= l0:
-            return None
-        return (l1 - l0) / span * 60.0
-
-    def remaining(self) -> float | None:
-        """Seconds left at the current layer rate."""
-        rate = self.per_minute()
-        if rate is None or self.total is None or self._current is None:
-            return None
-        left = self.total - self._current
-        if left <= 0:
-            return 0.0
-        return left / rate * 60.0

@@ -222,9 +222,9 @@ The header carries the running job across its three rows: where it is, and two
 independent answers to when it will be done.
 
 ```
-PRINTING 96.4%  instr 14,202/14,740 · 473/min
-slicer   00:24:40  eta 00:35
-realtime 01:04:34  eta 01:39
+PRINTING 64.7%  instr 18,748/28,968 · 849/min
+slicer   00:12:45  eta 02:15
+realtime 00:12:01  eta 02:14
 ```
 
 **instr** is where the printer is in the file, counted in gcode commands, with
@@ -238,11 +238,12 @@ layer, a pause, a bed that takes a while — all pass it by. Best at the start,
 when there is nothing else to go on. Once a print runs past it, it says
 `overrun` rather than pretending.
 
-**realtime** is measured from **layers a minute**, over the last dozen layer
-changes. Layers are the unit the work happens in, and gcode density swings
-enough between a sparse infill layer and a dense top surface that bytes a
-second can crawl while the print is moving along. Until the file has been
-indexed there are no layers to count, so the byte rate stands in.
+**realtime** is measured from how fast the file is being read — bytes a
+second, over the last three minutes — and projected forward. Layers a minute
+was tried and abandoned: a layer rate can only change when a layer does, so
+the figure sat still for a minute and a half at a time and read as frozen.
+File position moves with every status update, four times a second, so the
+countdown actually counts down.
 
 Neither is right, which is why both are shown with their own finish time. The
 slicer knows what is left to print but not how fast this machine is going;

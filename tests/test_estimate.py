@@ -130,7 +130,7 @@ if "self.app.estimator" not in status_source:
 header_source = inspect.getsource(KlipperHeader.update_status)
 if "estimate.best" in header_source:
     failures.append("the header should show both estimates, not pick one")
-for needed in ("layer_rate", "estimator", "slicer_remaining"):
+for needed in ("estimator", "slicer_remaining"):
     if needed not in header_source:
         failures.append(f"the header does not consult {needed}")
 

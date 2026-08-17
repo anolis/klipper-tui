@@ -87,15 +87,12 @@ class KlipperHeader(Horizontal):
         progress = float(sd.get("progress") or 0.0)
         elapsed = float(stats.get("print_duration") or 0.0)
 
-        # Layers a minute is the rate worth projecting from: gcode density
-        # swings between a sparse infill layer and a dense top surface, so
-        # bytes a second can crawl while the print moves along. Until the file
-        # has been indexed there are no layers, so the byte rate stands in.
-        layers = getattr(app, "layer_rate", None)
-        realtime = layers.remaining() if layers is not None else None
-        if realtime is None:
-            estimator = getattr(app, "estimator", None)
-            realtime = estimator.remaining() if estimator is not None else None
+        # Bytes a second, over the last few minutes. Layers were tried and
+        # abandoned: a layer rate can only change when a layer does, so the
+        # figure sat still for ninety seconds at a time and read as frozen.
+        # File position moves with every status update, four times a second.
+        estimator = getattr(app, "estimator", None)
+        realtime = estimator.remaining() if estimator is not None else None
         slicer = estimate.slicer_remaining(self.job_meta, elapsed)
 
         self._set("hd-job-state",
