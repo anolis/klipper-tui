@@ -103,22 +103,37 @@ class KlipperHeader(Horizontal):
         if remaining:
             done_at = datetime.now() + timedelta(seconds=remaining)
             self._set("hd-job-left",
-                      f"[$text-muted]left[/] [b]{duration(remaining)}[/b]"
+                      f"[$text-muted]left[/] [b]{duration(remaining)}[/b] "
+                      f"[$text-muted]{source}[/]"
                       f"  [$text-muted]at {done_at.strftime('%H:%M')}[/]")
         else:
-            self._set("hd-job-left", f"[$text-muted]elapsed[/] {duration(elapsed)}")
+            self._set("hd-job-left",
+                      f"[$text-muted]elapsed[/] {duration(elapsed)}")
 
-        # Both figures, always, with the one being led with marked. Two
-        # estimates that disagree say more than one that looks authoritative.
-        parts = []
-        for label, value in (("slicer", slicer), ("actual", measured)):
-            if value is None:
-                parts.append(f"[$text-muted]{label} —[/]")
-            elif label[0] == source[0]:
-                parts.append(f"[$text-muted]{label}[/] [b]{duration(value)}[/b]")
-            else:
-                parts.append(f"[$text-muted]{label} {duration(value)}[/]")
-        self._set("hd-job-sources", "  ".join(parts))
+        # The third row is the estimate we are *not* leading with. Repeating
+        # the headline figure under a second name only invites the question of
+        # what the difference is, and the answer would be "nothing".
+        self._set("hd-job-sources",
+                  self._second_opinion(source, measured, slicer, filament))
+
+    @staticmethod
+    def _second_opinion(source: str, measured: float | None,
+                        slicer: float | None,
+                        filament: float | None) -> str:
+        """The other estimate, for contrast with the one being shown."""
+        if source == "measured":
+            if slicer is None:
+                return "[$text-muted]no slicer estimate[/]"
+            return f"[$text-muted]slicer said[/] {duration(slicer)}"
+        if source == "slicer":
+            if measured is None:
+                return "[$text-muted]still measuring…[/]"
+            return f"[$text-muted]measured[/] {duration(measured)}"
+        if source == "filament":
+            return "[$text-muted]by filament used[/]"
+        if source == "file":
+            return "[$text-muted]by file position[/]"
+        return ""
 
     def set_job_metadata(self, meta: dict) -> None:
         self.job_meta = meta or {}

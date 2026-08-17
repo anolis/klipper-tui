@@ -138,6 +138,33 @@ except Exception as error:
     failures.append(f"unmounted panel raised: {error!r}")
 
 
+# -- the header never shows the same number twice ------------------------------
+#
+# "left" is the answer and the third row used to restate whichever estimate
+# produced it, so the two rows carried an identical figure under different
+# names. The third row now carries the estimate that did not win.
+
+second = KlipperHeader._second_opinion
+
+check("leading with measured, the slicer is offered",
+      "slicer said" in second("measured", 3900.0, 2000.0, None), True)
+check("leading with measured and no slicer figure",
+      second("measured", 3900.0, None, None), "[$text-muted]no slicer estimate[/]")
+check("leading with the slicer before a rate exists",
+      second("slicer", None, 2000.0, None), "[$text-muted]still measuring…[/]")
+check("leading with the slicer, the measured rate is offered",
+      "measured" in second("slicer", 3900.0, 2000.0, None), True)
+
+# The winning figure must not appear in the second row.
+for source, measured, slicer in (("measured", 3900.0, 2000.0),
+                                 ("slicer", 3900.0, 2000.0)):
+    winner = measured if source == "measured" else slicer
+    from klipper_tui.format import duration as _d
+    if _d(winner) in second(source, measured, slicer, None):
+        failures.append(
+            f"leading with {source}, the second row repeats the same figure")
+
+
 if failures:
     print("FAIL")
     for line in failures:

@@ -223,10 +223,15 @@ the clock time it should finish at, and **both estimates side by side** — the
 one being led with in bold.
 
 ```
-PRINTING 65.4%
-left 01:05:36  at 00:27
-slicer 00:33:39  actual 01:05:36
+PRINTING 69.8%
+left 01:04:34 measured  at 00:35
+slicer said 00:24:40
 ```
+
+The second line is the answer and how it was arrived at. The third is the
+estimate that did *not* win, for contrast — showing the winner twice under two
+names would only invite the question of what the difference is, and the answer
+would be "nothing".
 
 They are answering different questions, which is why both are shown:
 
@@ -239,8 +244,9 @@ They are answering different questions, which is why both are shown:
   left to print, so a job ending in a slow dense top surface will run past it,
   but it notices a speed change within a minute.
 
-Neither is right. The screenshot above is a real print where they disagreed by
-a factor of two; being told that is more use than one confident number.
+Neither is right. The example above is a real print where they disagreed by
+nearly a factor of three; being told that is more use than one confident
+number.
 
 The measured figure leads once a print is properly under way, because it is
 the one that reacts. Before that the slicer leads, since a rate measured over
