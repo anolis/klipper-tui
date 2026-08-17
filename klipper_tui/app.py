@@ -41,7 +41,8 @@ from .panels.tempgraph import RANGES, TempGraphPanel
 from .panels.toolhead import STEP_SIZES, Z_NUDGES, ToolheadPanel
 from .panels.settings import SettingsPanel
 from .panels.webcam import FPS_CHOICES, WebcamPanel
-from .gcode import index_layers, index_layers_by_z, read_layer
+from .gcode import (count_instructions, index_layers, index_layers_by_z,
+                    layer_for_position, read_layer)
 from . import estimate
 from .settings import (DASHBOARD_PANELS, PANEL_MIN_WIDTH, Settings,
                        state_path)
@@ -144,6 +145,10 @@ class KlipperTUI(App):
         # Measures how fast the file is actually being consumed, which is the
         # half of the estimate the slicer cannot know.
         self.estimator = estimate.Estimator()
+        # Gcode commands in the running job, counted once the file is here.
+        self.instruction_total: int | None = None
+        # Layers a minute, which is the rate a person can sanity-check.
+        self.layer_rate = estimate.LayerRate()
         self._cooldown_pending = False
         self._offline_screen: OfflineScreen | None = None
         # Commands are queued and sent by a background task. Awaiting a slow
@@ -383,8 +388,13 @@ class KlipperTUI(App):
             sd = status.get("virtual_sdcard") or {}
             stats = status.get("print_stats") or {}
             if (stats.get("state") or "") == "printing":
-                self.estimator.record(time.monotonic(),
-                                      float(sd.get("progress") or 0.0))
+                now = time.monotonic()
+                self.estimator.record(now, float(sd.get("progress") or 0.0))
+                if self._layers:
+                    position = int(sd.get("file_position") or 0)
+                    self.layer_rate.record(
+                        now, layer_for_position(self._layers, position),
+                        len(self._layers))
         except Exception:
             pass
 
@@ -522,6 +532,8 @@ class KlipperTUI(App):
         self._job_file = filename
         self._job_meta = {}
         self.estimator.reset()
+        self.layer_rate.reset()
+        self.instruction_total = None
         self._layers = []
         self._gcode_path = None
         for panel in self.query(GcodeViewPanel):
@@ -629,6 +641,11 @@ class KlipperTUI(App):
 
         self._gcode_path = path
         self._layers = layers
+        # Only worth counting once the whole file is here; a partial count
+        # would keep climbing and make the "of" figure meaningless.
+        if not partial:
+            self.run_worker(self._count_instructions(filename, path),
+                            group="instructions")
         for panel in self.query(GcodeViewPanel):
             panel.set_layers(layers)
             if partial:
@@ -637,6 +654,15 @@ class KlipperTUI(App):
             self._toolpath_timer = self.set_interval(
                 1.0, self._refresh_toolpath)
         self._refresh_toolpath()
+
+    async def _count_instructions(self, filename: str, path) -> None:
+        """Total gcode commands in the job, for the progress readout."""
+        try:
+            total = await asyncio.to_thread(count_instructions, path)
+        except Exception:
+            return
+        if filename == self._job_file and total > 0:
+            self.instruction_total = total
 
     def _refresh_toolpath(self) -> None:
         """Parse whichever layer the panels are asking for.

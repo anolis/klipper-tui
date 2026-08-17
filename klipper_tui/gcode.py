@@ -215,3 +215,29 @@ def layer_for_position(layers: list[Layer], file_position: int) -> int | None:
     if file_position >= layers[-1].end:
         return layers[-1].number
     return 0
+
+
+def count_instructions(path) -> int:
+    """How many gcode commands are in a file.
+
+    Comments and blank lines are not instructions; a semicolon partway through
+    a line is a trailing comment on one that is. Read in binary and in blocks,
+    because a 28MB file line by line in Python is slower than the whole rest of
+    the indexing put together.
+    """
+    total = 0
+    with open(path, "rb") as handle:
+        tail = b""
+        while True:
+            block = handle.read(1 << 20)
+            if not block:
+                break
+            lines = (tail + block).split(b"\n")
+            tail = lines.pop()
+            for line in lines:
+                stripped = line.strip()
+                if stripped and not stripped.startswith(b";"):
+                    total += 1
+        if tail.strip() and not tail.strip().startswith(b";"):
+            total += 1
+    return total

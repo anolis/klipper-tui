@@ -67,8 +67,8 @@ class KlipperHeader(Horizontal):
         # doing, how much is left, and the two estimates side by side.
         with Vertical(id="hd-job"):
             yield Static("", id="hd-job-state")
-            yield Static("", id="hd-job-left")
-            yield Static("", id="hd-job-sources")
+            yield Static("", id="hd-job-slicer")
+            yield Static("", id="hd-job-realtime")
         yield Static("", id="hd-clock")
 
     # -- the job ---------------------------------------------------------------
@@ -83,57 +83,65 @@ class KlipperHeader(Horizontal):
             self._clear_job(state)
             return
 
+        app = self._owner()
         progress = float(sd.get("progress") or 0.0)
         elapsed = float(stats.get("print_duration") or 0.0)
-        # self.app raises rather than returning None on an unmounted widget,
-        # which the geometry tests build deliberately.
-        try:
-            estimator = self.app.estimator
-        except Exception:
-            estimator = None
-        measured = estimator.remaining() if estimator is not None else None
+
+        # Layers a minute is the rate worth projecting from: gcode density
+        # swings between a sparse infill layer and a dense top surface, so
+        # bytes a second can crawl while the print moves along. Until the file
+        # has been indexed there are no layers, so the byte rate stands in.
+        layers = getattr(app, "layer_rate", None)
+        realtime = layers.remaining() if layers is not None else None
+        if realtime is None:
+            estimator = getattr(app, "estimator", None)
+            realtime = estimator.remaining() if estimator is not None else None
         slicer = estimate.slicer_remaining(self.job_meta, elapsed)
-        filament = estimate.filament_remaining(stats, self.job_meta, elapsed)
-        remaining, source = estimate.best(measured, slicer, filament,
-                                          elapsed, progress)
 
         self._set("hd-job-state",
-                  f"{state_markup(state)} [b]{progress * 100:.1f}%[/b]")
-
-        if remaining:
-            done_at = datetime.now() + timedelta(seconds=remaining)
-            self._set("hd-job-left",
-                      f"[$text-muted]left[/] [b]{duration(remaining)}[/b] "
-                      f"[$text-muted]{source}[/]"
-                      f"  [$text-muted]at {done_at.strftime('%H:%M')}[/]")
-        else:
-            self._set("hd-job-left",
-                      f"[$text-muted]elapsed[/] {duration(elapsed)}")
-
-        # The third row is the estimate we are *not* leading with. Repeating
-        # the headline figure under a second name only invites the question of
-        # what the difference is, and the answer would be "nothing".
-        self._set("hd-job-sources",
-                  self._second_opinion(source, measured, slicer, filament))
+                  f"{state_markup(state)} [b]{progress * 100:.1f}%[/b]"
+                  f"{self._throughput(app, progress)}")
+        self._set("hd-job-slicer", self._line("slicer", slicer))
+        self._set("hd-job-realtime", self._line("realtime", realtime))
 
     @staticmethod
-    def _second_opinion(source: str, measured: float | None,
-                        slicer: float | None,
-                        filament: float | None) -> str:
-        """The other estimate, for contrast with the one being shown."""
-        if source == "measured":
-            if slicer is None:
-                return "[$text-muted]no slicer estimate[/]"
-            return f"[$text-muted]slicer said[/] {duration(slicer)}"
-        if source == "slicer":
-            if measured is None:
-                return "[$text-muted]still measuring…[/]"
-            return f"[$text-muted]measured[/] {duration(measured)}"
-        if source == "filament":
-            return "[$text-muted]by filament used[/]"
-        if source == "file":
-            return "[$text-muted]by file position[/]"
-        return ""
+    def _line(label: str, remaining: float | None) -> str:
+        """One estimate: how long is left, and the clock time that lands on."""
+        if remaining is None:
+            waiting = "still measuring…" if label == "realtime" else "—"
+            return f"[$text-muted]{label:8} {waiting}[/]"
+        if remaining <= 0:
+            # The print has run past this estimate. Saying so beats a row of
+            # dashes next to a finish time of "about now".
+            return f"[$text-muted]{label:8}[/] [$warning]overrun[/]"
+        done_at = datetime.now() + timedelta(seconds=remaining)
+        return (f"[$text-muted]{label:8}[/] [b]{duration(remaining)}[/b]  "
+                f"[$text-muted]eta {done_at.strftime('%H:%M')}[/]")
+
+    @staticmethod
+    def _throughput(app, progress: float) -> str:
+        """Where in the job we are, counted in gcode commands."""
+        total = getattr(app, "instruction_total", None)
+        if not total:
+            return ""
+        # Interpolated from file position rather than counted as they run:
+        # Klipper does not report a command number, and bytes read is a good
+        # enough stand-in for a progress readout.
+        done = int(total * progress)
+        rate = ""
+        estimator = getattr(app, "estimator", None)
+        per_second = estimator.rate() if estimator is not None else None
+        if per_second:
+            rate = f" [$text-muted]· {per_second * total * 60:,.0f}/min[/]"
+        return (f"  [$text-muted]instr[/] {done:,}"
+                f"[$text-muted]/{total:,}[/]{rate}")
+
+    def _owner(self):
+        # self.app raises on an unmounted widget, which the tests build.
+        try:
+            return self.app
+        except Exception:
+            return None
 
     def set_job_metadata(self, meta: dict) -> None:
         self.job_meta = meta or {}
@@ -141,8 +149,8 @@ class KlipperHeader(Horizontal):
     def _clear_job(self, state: str) -> None:
         self._set("hd-job-state",
                   state_markup(state) if state else "")
-        self._set("hd-job-left", "")
-        self._set("hd-job-sources", "")
+        self._set("hd-job-slicer", "")
+        self._set("hd-job-realtime", "")
 
     def _set(self, widget_id: str, text: str) -> None:
         try:

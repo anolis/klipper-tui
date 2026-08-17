@@ -218,42 +218,40 @@ applies.
 
 ## Time remaining
 
-The header carries the running job: how far through it is, how long is left,
-the clock time it should finish at, and **both estimates side by side** — the
-one being led with in bold.
+The header carries the running job across its three rows: where it is, and two
+independent answers to when it will be done.
 
 ```
-PRINTING 69.8%
-left 01:04:34 measured  at 00:35
-slicer said 00:24:40
+PRINTING 96.4%  instr 14,202/14,740 · 473/min
+slicer   00:24:40  eta 00:35
+realtime 01:04:34  eta 01:39
 ```
 
-The second line is the answer and how it was arrived at. The third is the
-estimate that did *not* win, for contrast — showing the winner twice under two
-names would only invite the question of what the difference is, and the answer
-would be "nothing".
+**instr** is where the printer is in the file, counted in gcode commands, with
+the rate they are being consumed. The total is counted once when the file
+finishes downloading; the current figure is interpolated from file position,
+since Klipper reports bytes read rather than a command number.
 
-They are answering different questions, which is why both are shown:
+**slicer** is the prediction made before the print started. It knows the whole
+job but nothing about this printer today — a speed override, a slower first
+layer, a pause, a bed that takes a while — all pass it by. Best at the start,
+when there is nothing else to go on. Once a print runs past it, it says
+`overrun` rather than pretending.
 
-- **slicer** is the prediction made before the print started. It knows the
-  whole job but nothing about this printer today — a speed override, a slower
-  first layer, a pause, a bed that takes a while — all pass it by. Best at the
-  start, when there is nothing else to go on.
-- **actual** watches how fast the file is really being consumed, over the last
-  three minutes, and projects that forward. It knows nothing about what is
-  left to print, so a job ending in a slow dense top surface will run past it,
-  but it notices a speed change within a minute.
+**realtime** is measured from **layers a minute**, over the last dozen layer
+changes. Layers are the unit the work happens in, and gcode density swings
+enough between a sparse infill layer and a dense top surface that bytes a
+second can crawl while the print is moving along. Until the file has been
+indexed there are no layers to count, so the byte rate stands in.
 
-Neither is right. The example above is a real print where they disagreed by
-nearly a factor of three; being told that is more use than one confident
-number.
+Neither is right, which is why both are shown with their own finish time. The
+slicer knows what is left to print but not how fast this machine is going;
+realtime knows exactly how fast it is going but nothing about what is coming.
+When they disagree, that gap is itself worth seeing — and they often disagree
+by a factor of two or more once a speed override is in play.
 
-The measured figure leads once a print is properly under way, because it is
-the one that reacts. Before that the slicer leads, since a rate measured over
-the first minute is mostly the heat-up. Filament used, and then raw file
-position, are the fallbacks when there is no slicer estimate. The status panel
-shows the same figure from the same place, so the two never disagree.
-
+The status panel shows the leading figure from the same source, so the two
+never contradict each other.
 
 ## Mid-print safety
 

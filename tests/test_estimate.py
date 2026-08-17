@@ -118,13 +118,21 @@ import inspect
 from klipper_tui.panels.header import KlipperHeader
 from klipper_tui.panels.status import StatusPanel
 
-for owner, method in ((KlipperHeader, KlipperHeader.update_status),
-                      (StatusPanel, StatusPanel._remaining)):
-    body = inspect.getsource(method)
-    if "estimate.best" not in body:
-        failures.append(f"{owner.__name__} does not use estimate.best")
-    if "self.app.estimator" not in body:
-        failures.append(f"{owner.__name__} does not use the shared estimator")
+# The status panel shows one figure, so it goes through best(); the header
+# shows both, so it does not. Both read the estimators the app owns, rather
+# than keeping their own and drifting apart.
+status_source = inspect.getsource(StatusPanel._remaining)
+if "estimate.best" not in status_source:
+    failures.append("StatusPanel does not use estimate.best")
+if "self.app.estimator" not in status_source:
+    failures.append("StatusPanel does not use the shared estimator")
+
+header_source = inspect.getsource(KlipperHeader.update_status)
+if "estimate.best" in header_source:
+    failures.append("the header should show both estimates, not pick one")
+for needed in ("layer_rate", "estimator", "slicer_remaining"):
+    if needed not in header_source:
+        failures.append(f"the header does not consult {needed}")
 
 # An unmounted panel must not explode: self.app raises rather than returning
 # None, and the geometry tests build panels that way on purpose.
@@ -138,32 +146,36 @@ except Exception as error:
     failures.append(f"unmounted panel raised: {error!r}")
 
 
-# -- the header never shows the same number twice ------------------------------
+# -- the header's two lines --------------------------------------------------
 #
-# "left" is the answer and the third row used to restate whichever estimate
-# produced it, so the two rows carried an identical figure under different
-# names. The third row now carries the estimate that did not win.
+# One line per estimate, each with the time left and the clock time it lands
+# on. Neither line restates the other: they are answers from different
+# methods, and showing the same number twice under two names only invites the
+# question of what the difference is.
 
-second = KlipperHeader._second_opinion
+line = KlipperHeader._line
 
-check("leading with measured, the slicer is offered",
-      "slicer said" in second("measured", 3900.0, 2000.0, None), True)
-check("leading with measured and no slicer figure",
-      second("measured", 3900.0, None, None), "[$text-muted]no slicer estimate[/]")
-check("leading with the slicer before a rate exists",
-      second("slicer", None, 2000.0, None), "[$text-muted]still measuring…[/]")
-check("leading with the slicer, the measured rate is offered",
-      "measured" in second("slicer", 3900.0, 2000.0, None), True)
+slicer_line = line("slicer", 2000.0)
+realtime_line = line("realtime", 3900.0)
+for label in ("slicer", "realtime"):
+    if label not in (slicer_line if label == "slicer" else realtime_line):
+        failures.append(f"the {label} line is not labelled")
+if "eta " not in slicer_line or "eta " not in realtime_line:
+    failures.append("a line is missing its clock time")
+from klipper_tui.format import duration as _d
+if _d(2000.0) not in slicer_line:
+    failures.append("the slicer line does not show its own figure")
+if _d(3900.0) in slicer_line:
+    failures.append("the slicer line shows the realtime figure")
 
-# The winning figure must not appear in the second row.
-for source, measured, slicer in (("measured", 3900.0, 2000.0),
-                                 ("slicer", 3900.0, 2000.0)):
-    winner = measured if source == "measured" else slicer
-    from klipper_tui.format import duration as _d
-    if _d(winner) in second(source, measured, slicer, None):
-        failures.append(
-            f"leading with {source}, the second row repeats the same figure")
-
+check("no rate yet says so",
+      "still measuring" in line("realtime", None), True)
+check("no slicer estimate is a dash",
+      "—" in line("slicer", None), True)
+check("an exhausted estimate says so",
+      "overrun" in line("slicer", 0.0), True)
+check("an exhausted estimate offers no finish time",
+      "eta" in line("slicer", 0.0), False)
 
 if failures:
     print("FAIL")
