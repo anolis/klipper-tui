@@ -656,3 +656,17 @@ Button.st-move {
     height: auto;
     width: 100%;
 }
+
+/* The job block in the header, between the title and the clock. */
+#hd-job {
+    width: auto;
+    height: 3;
+    padding: 0 2 0 0;
+    content-align: right middle;
+}
+
+#hd-job Static {
+    height: 1;
+    width: auto;
+    text-align: right;
+}

@@ -218,11 +218,36 @@ applies.
 
 ## Time remaining
 
-The ETA prefers the slicer's own estimate, taken from the file's metadata, and
-shows the clock time the job should finish along with which source it used.
-Extrapolating from how much of the file has been read is very wrong early on —
-a six-hour print can sit under 1% for its first forty minutes — so that is only
-a last resort, after filament used, and only once at least 2% is done.
+The header carries the running job: how far through it is, how long is left,
+the clock time it should finish at, and **both estimates side by side** — the
+one being led with in bold.
+
+```
+PRINTING 65.4%
+left 01:05:36  at 00:27
+slicer 00:33:39  actual 01:05:36
+```
+
+They are answering different questions, which is why both are shown:
+
+- **slicer** is the prediction made before the print started. It knows the
+  whole job but nothing about this printer today — a speed override, a slower
+  first layer, a pause, a bed that takes a while — all pass it by. Best at the
+  start, when there is nothing else to go on.
+- **actual** watches how fast the file is really being consumed, over the last
+  three minutes, and projects that forward. It knows nothing about what is
+  left to print, so a job ending in a slow dense top surface will run past it,
+  but it notices a speed change within a minute.
+
+Neither is right. The screenshot above is a real print where they disagreed by
+a factor of two; being told that is more use than one confident number.
+
+The measured figure leads once a print is properly under way, because it is
+the one that reacts. Before that the slicer leads, since a rate measured over
+the first minute is mostly the heat-up. Filament used, and then raw file
+position, are the fallbacks when there is no slicer estimate. The status panel
+shows the same figure from the same place, so the two never disagree.
+
 
 ## Mid-print safety
 

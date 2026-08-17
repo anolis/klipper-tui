@@ -14,13 +14,16 @@ still perfectly legible.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
+
+from .. import estimate
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Static
 
+from ..format import duration, state_markup
 from .webcam import AVAILABLE as IMAGES_AVAILABLE, RENDERERS
 
 LOGO_PATH = Path(__file__).resolve().parent.parent / "assets" / "klipper-logo.png"
@@ -52,6 +55,7 @@ class KlipperHeader(Horizontal):
             renderer = "halfcell" if renderer == "unicode" else "auto"
         self.renderer = renderer
         self._last_clock = ""
+        self.job_meta: dict = {}
 
     def compose(self) -> ComposeResult:
         yield self._logo()
@@ -59,7 +63,77 @@ class KlipperHeader(Horizontal):
             yield Static(f"[b]{self.header_title}[/]", id="hd-title")
             yield Static(f"[$text-muted]{self.target}[/]", id="hd-target")
             yield Static("", id="hd-state")
+        # The job, in the three rows the logo already costs us: what it is
+        # doing, how much is left, and the two estimates side by side.
+        with Vertical(id="hd-job"):
+            yield Static("", id="hd-job-state")
+            yield Static("", id="hd-job-left")
+            yield Static("", id="hd-job-sources")
         yield Static("", id="hd-clock")
+
+    # -- the job ---------------------------------------------------------------
+
+    def update_status(self, status: dict) -> None:
+        """Show the running job, or nothing at all when there is not one."""
+        stats = status.get("print_stats") or {}
+        sd = status.get("virtual_sdcard") or {}
+        state = (stats.get("state") or "").lower()
+
+        if state not in ("printing", "paused"):
+            self._clear_job(state)
+            return
+
+        progress = float(sd.get("progress") or 0.0)
+        elapsed = float(stats.get("print_duration") or 0.0)
+        # self.app raises rather than returning None on an unmounted widget,
+        # which the geometry tests build deliberately.
+        try:
+            estimator = self.app.estimator
+        except Exception:
+            estimator = None
+        measured = estimator.remaining() if estimator is not None else None
+        slicer = estimate.slicer_remaining(self.job_meta, elapsed)
+        filament = estimate.filament_remaining(stats, self.job_meta, elapsed)
+        remaining, source = estimate.best(measured, slicer, filament,
+                                          elapsed, progress)
+
+        self._set("hd-job-state",
+                  f"{state_markup(state)} [b]{progress * 100:.1f}%[/b]")
+
+        if remaining:
+            done_at = datetime.now() + timedelta(seconds=remaining)
+            self._set("hd-job-left",
+                      f"[$text-muted]left[/] [b]{duration(remaining)}[/b]"
+                      f"  [$text-muted]at {done_at.strftime('%H:%M')}[/]")
+        else:
+            self._set("hd-job-left", f"[$text-muted]elapsed[/] {duration(elapsed)}")
+
+        # Both figures, always, with the one being led with marked. Two
+        # estimates that disagree say more than one that looks authoritative.
+        parts = []
+        for label, value in (("slicer", slicer), ("actual", measured)):
+            if value is None:
+                parts.append(f"[$text-muted]{label} —[/]")
+            elif label[0] == source[0]:
+                parts.append(f"[$text-muted]{label}[/] [b]{duration(value)}[/b]")
+            else:
+                parts.append(f"[$text-muted]{label} {duration(value)}[/]")
+        self._set("hd-job-sources", "  ".join(parts))
+
+    def set_job_metadata(self, meta: dict) -> None:
+        self.job_meta = meta or {}
+
+    def _clear_job(self, state: str) -> None:
+        self._set("hd-job-state",
+                  state_markup(state) if state else "")
+        self._set("hd-job-left", "")
+        self._set("hd-job-sources", "")
+
+    def _set(self, widget_id: str, text: str) -> None:
+        try:
+            self.query_one(f"#{widget_id}", Static).update(text)
+        except Exception:
+            pass
 
     def _logo(self):
         """The mark, or an empty spacer if it cannot be drawn at all."""

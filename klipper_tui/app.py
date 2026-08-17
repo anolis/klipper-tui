@@ -42,6 +42,7 @@ from .panels.toolhead import STEP_SIZES, Z_NUDGES, ToolheadPanel
 from .panels.settings import SettingsPanel
 from .panels.webcam import FPS_CHOICES, WebcamPanel
 from .gcode import index_layers, index_layers_by_z, read_layer
+from . import estimate
 from .settings import (DASHBOARD_PANELS, PANEL_MIN_WIDTH, Settings,
                        state_path)
 from .theming import DEFAULT_THEME, all_theme_names, register as register_themes
@@ -140,6 +141,9 @@ class KlipperTUI(App):
         # Panel types already reported as failing, so the console is not
         # flooded several times a second by the same broken panel.
         self._panel_errors: set[str] = set()
+        # Measures how fast the file is actually being consumed, which is the
+        # half of the estimate the slicer cannot know.
+        self.estimator = estimate.Estimator()
         self._cooldown_pending = False
         self._offline_screen: OfflineScreen | None = None
         # Commands are queued and sent by a background task. Awaiting a slow
@@ -375,6 +379,15 @@ class KlipperTUI(App):
         except Exception:
             pass
 
+        try:
+            sd = status.get("virtual_sdcard") or {}
+            stats = status.get("print_stats") or {}
+            if (stats.get("state") or "") == "printing":
+                self.estimator.record(time.monotonic(),
+                                      float(sd.get("progress") or 0.0))
+        except Exception:
+            pass
+
         # Redrawing every panel is not cheap, and Moonraker pushes several
         # times a second. Twice a second is plenty for temperatures and
         # positions, and it is the difference between a responsive interface
@@ -400,6 +413,8 @@ class KlipperTUI(App):
         did exactly that, and the rest of the interface silently stopped
         updating while still looking alive.
         """
+        for header in self.query(KlipperHeader):
+            self._feed(header, status)
         for panel in self.query(StatusPanel):
             self._feed(panel, status, self.client.klippy_state)
         for panel_type in self.STATUS_PANELS:
@@ -506,6 +521,7 @@ class KlipperTUI(App):
             return
         self._job_file = filename
         self._job_meta = {}
+        self.estimator.reset()
         self._layers = []
         self._gcode_path = None
         for panel in self.query(GcodeViewPanel):
@@ -513,6 +529,8 @@ class KlipperTUI(App):
             panel.status_text = "No job loaded." if not filename else "Waiting…"
         for panel in self.query(StatusPanel):
             panel.set_job_metadata({})
+        for header in self.query(KlipperHeader):
+            header.set_job_metadata({})
         if filename:
             self.call_later(
                 lambda: self.run_worker(self._load_job_meta(filename),
@@ -666,6 +684,8 @@ class KlipperTUI(App):
         self._job_meta = meta or {}
         for panel in self.query(StatusPanel):
             panel.set_job_metadata(self._job_meta)
+        for header in self.query(KlipperHeader):
+            header.set_job_metadata(self._job_meta)
         # The toolpath download checks the expected size, so it follows.
         self.run_worker(self._load_toolpath(filename), group="toolpath")
 

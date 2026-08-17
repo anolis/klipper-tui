@@ -8,6 +8,7 @@ from textual.widgets import Button, Label, Static
 
 from datetime import datetime, timedelta
 
+from .. import estimate
 from ..format import duration, state_markup
 
 
@@ -55,26 +56,23 @@ class StatusPanel(Vertical):
 
     def _remaining(self, stats: dict, sd: dict, elapsed: float,
                    progress: float) -> tuple[float, str]:
-        """Time left, and where the figure came from.
+        """Time left, and one word for where the figure came from.
 
-        The slicer's own estimate is used when Moonraker has it: extrapolating
-        from file position is wildly wrong early in a print, which is exactly
-        when an ETA is most wanted. Filament used is the next best signal, and
-        file position the last resort.
+        The same three sources the header shows, so the two agree. See
+        klipper_tui/estimate.py for why there is more than one.
         """
-        slicer = self.job_meta.get("estimated_time")
-        if slicer and slicer > 0:
-            return max(0.0, slicer - elapsed), "slicer"
-
-        used = stats.get("filament_used") or 0
-        total = self.job_meta.get("filament_total") or 0
-        if used > 0 and total > 0 and used < total:
-            return elapsed * (total / used - 1), "filament"
-
-        # Only meaningful once enough of the file has been read.
-        if progress > 2:
-            return max(0.0, elapsed * (100 / progress - 1)), "file"
-        return 0.0, ""
+        # self.app raises rather than returning None on an unmounted widget,
+        # which the geometry tests build deliberately.
+        try:
+            estimator = self.app.estimator
+        except Exception:
+            estimator = None
+        measured = estimator.remaining() if estimator is not None else None
+        return estimate.best(
+            measured,
+            estimate.slicer_remaining(self.job_meta, elapsed),
+            estimate.filament_remaining(stats, self.job_meta, elapsed),
+            elapsed, progress / 100)
 
     def _set_job_buttons(self, state: str, has_file: bool) -> None:
         """Only offer what the current job state actually allows."""
