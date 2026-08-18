@@ -700,6 +700,10 @@ class KlipperTUI(App):
         if filename != self._job_file:
             return  # the job moved on while we were asking
         self._job_meta = meta or {}
+        # The slicer's total implies a pace; start the measured rate there
+        # rather than from nothing, so the first minutes of a print have a
+        # figure instead of a dash.
+        self.estimator.seed(self._job_meta.get("estimated_time"))
         for panel in self.query(StatusPanel):
             panel.set_job_metadata(self._job_meta)
         for header in self.query(KlipperHeader):

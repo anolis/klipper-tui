@@ -242,8 +242,15 @@ when there is nothing else to go on. Once a print runs past it, it says
 second, over the last three minutes — and projected forward. Layers a minute
 was tried and abandoned: a layer rate can only change when a layer does, so
 the figure sat still for a minute and a half at a time and read as frozen.
-File position moves with every status update, four times a second, so the
-countdown actually counts down.
+File position moves with every status update, four times a second.
+
+It does not start from nothing. The slicer's total implies a pace — the whole
+file in that many seconds — and the measured rate is seeded with it, then
+blended towards observation in proportion to how much of the three-minute
+window has filled. So there is a figure from the first second of a print
+rather than three minutes of dashes, and it converges on the truth instead of
+lurching when measurement takes over. While any of it is still the seed the
+line is marked `settling`.
 
 Neither is right, which is why both are shown with their own finish time. The
 slicer knows what is left to print but not how fast this machine is going;

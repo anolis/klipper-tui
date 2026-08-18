@@ -40,10 +40,30 @@ class Estimator:
         self.window = window
         # (monotonic seconds, fraction of the file consumed)
         self._samples: deque[tuple[float, float]] = deque()
+        # Fraction of the file per second the slicer's estimate implies, used
+        # until enough of the print has been watched to have an opinion.
+        self.prior: float | None = None
 
     def reset(self) -> None:
         """A new job means the old rate says nothing about this one."""
         self._samples.clear()
+        self.prior = None
+
+    def seed(self, total_seconds: float | None) -> None:
+        """Start from the pace the slicer's estimate implies.
+
+        The whole file in total_seconds is a rate, and it is a much better
+        first guess than nothing. Without it the first three minutes of every
+        print have no measured figure at all, and the minute after that swings
+        about while the window fills.
+
+        It is a starting point, not an answer: real samples take over as they
+        accumulate, in proportion to how much of the window they cover.
+        """
+        if not total_seconds or total_seconds <= 0:
+            self.prior = None
+            return
+        self.prior = 1.0 / total_seconds
 
     def record(self, now: float, progress: float) -> None:
         """Note the progress at a moment. Progress is 0..1."""
@@ -54,29 +74,62 @@ class Estimator:
         if self._samples and progress < self._samples[-1][1] - MIN_PROGRESS:
             self.reset()
         self._samples.append((now, progress))
+        # Keep the last sample that predates the cutoff, so the span really
+        # covers the window rather than falling a fraction short of it.
+        # Dropping everything older left the span permanently just under, and
+        # a share of 0.999 never reads as a full window.
         cutoff = now - self.window
-        while len(self._samples) > 2 and self._samples[0][0] < cutoff:
+        while len(self._samples) > 2 and self._samples[1][0] <= cutoff:
             self._samples.popleft()
 
-    def rate(self) -> float | None:
-        """Fraction of the file per second, over the recent window."""
+    def measured_rate(self) -> tuple[float | None, float]:
+        """The rate from observation alone, and the span it was taken over."""
         if len(self._samples) < 2:
-            return None
+            return None, 0.0
         (t0, p0), (t1, p1) = self._samples[0], self._samples[-1]
         span = t1 - t0
         if span < MIN_SPAN:
-            return None
+            return None, span
         moved = p1 - p0
         if moved <= MIN_PROGRESS:
-            return None
-        return moved / span
+            return None, span
+        return moved / span, span
+
+    def measured_share(self) -> float:
+        """How much of the blended rate is observation rather than the seed.
+
+        Simply how full the averaging window is: three minutes of samples is
+        1.0, ninety seconds is 0.5. It is the weight used in the blend, not a
+        confidence in any statistical sense — it says nothing about whether
+        the observed rate is steady, nor whether the two estimates agree, only
+        how much of the answer stopped being a guess.
+        """
+        if self.prior is None:
+            return 1.0
+        _, span = self.measured_rate()
+        return max(0.0, min(1.0, span / self.window))
+
+    def rate(self) -> float | None:
+        """Fraction of the file per second.
+
+        Observation once there is enough of it, the slicer's implied pace
+        before that, and a weighted blend in between so the figure does not
+        jump when measurement takes over.
+        """
+        measured, span = self.measured_rate()
+        if measured is None:
+            return self.prior
+        if self.prior is None:
+            return measured
+        weight = self.measured_share()
+        return measured * weight + self.prior * (1.0 - weight)
 
     def remaining(self) -> float | None:
         """Seconds left at the rate of the last few minutes, or None."""
         rate = self.rate()
-        if rate is None:
+        if rate is None or rate <= 0:
             return None
-        progress = self._samples[-1][1]
+        progress = self._samples[-1][1] if self._samples else 0.0
         return max(0.0, (1.0 - progress) / rate)
 
 

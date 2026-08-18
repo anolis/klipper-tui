@@ -177,6 +177,56 @@ check("an exhausted estimate says so",
 check("an exhausted estimate offers no finish time",
       "eta" in line("slicer", 0.0), False)
 
+# -- seeding from the slicer ---------------------------------------------------
+#
+# Without a starting point the first three minutes of every print have no
+# measured figure at all, and the minute after that swings while the window
+# fills. The slicer's total implies a pace, which is a far better first guess
+# than nothing — and it has to give way to observation as that accumulates.
+
+seeded = Estimator()
+seeded.seed(3600)
+seeded.record(0.0, 0.0)
+close("a seeded estimate is available at once", seeded.remaining(), 3600.0, 1.0)
+check("and none of it is measured yet", seeded.measured_share(), 0.0)
+
+# A printer running at half the slicer's pace should converge on the truth.
+def at(after: float) -> Estimator:
+    e = Estimator()
+    e.seed(3600)
+    step = 10.0
+    for i in range(int(after / step) + 1):
+        e.record(i * step, i * step / 7200)
+    return e
+
+converging = [round(at(t).remaining()) for t in (30, 60, 120, 180)]
+if not all(a < b for a, b in zip(converging, converging[1:])):
+    failures.append(f"the estimate does not converge steadily: {converging}")
+close("fully measured after a window", at(180).remaining(), 7020.0, 60.0)
+close("and settles on the true rate", at(240).remaining(), 6960.0, 60.0)
+check("the window fills", at(180).measured_share(), 1.0)
+if not 0.0 < at(60).measured_share() < 1.0:
+    failures.append("the measured share should be partial while the window fills")
+
+# No slicer figure to seed with is still allowed.
+bare_seed = Estimator()
+bare_seed.seed(None)
+bare_seed.record(0.0, 0.0)
+check("no seed, no estimate yet", bare_seed.remaining(), None)
+check("with no seed there is nothing to blend", bare_seed.measured_share(), 1.0)
+
+# A new job clears the old pace as well as the old samples.
+stale = at(240)
+stale.reset()
+check("reset drops the seed", stale.prior, None)
+
+# The header says when a figure is still partly the slicer's.
+settled_line = KlipperHeader._line("realtime", 3600.0, False)
+settling_line = KlipperHeader._line("realtime", 3600.0, True)
+check("a settled figure is unqualified", "settling" in settled_line, False)
+check("a settling figure says so", "settling" in settling_line, True)
+
+
 if failures:
     print("FAIL")
     for line in failures:

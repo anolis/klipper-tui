@@ -93,17 +93,27 @@ class KlipperHeader(Horizontal):
         # File position moves with every status update, four times a second.
         estimator = getattr(app, "estimator", None)
         realtime = estimator.remaining() if estimator is not None else None
+        settling = (estimator is not None and realtime is not None
+                    and estimator.measured_share() < 1.0)
         slicer = estimate.slicer_remaining(self.job_meta, elapsed)
 
         self._set("hd-job-state",
                   f"{state_markup(state)} [b]{progress * 100:.1f}%[/b]"
                   f"{self._throughput(app, progress)}")
         self._set("hd-job-slicer", self._line("slicer", slicer))
-        self._set("hd-job-realtime", self._line("realtime", realtime))
+        self._set("hd-job-realtime",
+                  self._line("realtime", realtime, settling))
 
     @staticmethod
-    def _line(label: str, remaining: float | None) -> str:
-        """One estimate: how long is left, and the clock time that lands on."""
+    def _line(label: str, remaining: float | None,
+              settling: bool = False) -> str:
+        """One estimate: how long is left, and the clock time that lands on.
+
+        A realtime figure that is still partly the slicer's own pace says so.
+        Until enough of the print has been watched the two lines would
+        otherwise carry the same number under different names, which is
+        exactly as confusing as it sounds.
+        """
         if remaining is None:
             waiting = "still measuring…" if label == "realtime" else "—"
             return f"[$text-muted]{label:8} {waiting}[/]"
@@ -112,8 +122,9 @@ class KlipperHeader(Horizontal):
             # dashes next to a finish time of "about now".
             return f"[$text-muted]{label:8}[/] [$warning]overrun[/]"
         done_at = datetime.now() + timedelta(seconds=remaining)
+        note = "[$text-muted] settling[/]" if settling else ""
         return (f"[$text-muted]{label:8}[/] [b]{duration(remaining)}[/b]  "
-                f"[$text-muted]eta {done_at.strftime('%H:%M')}[/]")
+                f"[$text-muted]eta {done_at.strftime('%H:%M')}[/]{note}")
 
     @staticmethod
     def _throughput(app, progress: float) -> str:
