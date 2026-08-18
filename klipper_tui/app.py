@@ -147,6 +147,9 @@ class KlipperTUI(App):
         self.estimator = estimate.Estimator()
         # Gcode commands in the running job, counted once the file is here.
         self.instruction_total: int | None = None
+        # A job the user has asked to restart but which has not been sent to
+        # the printer yet. Nothing moves while this is set.
+        self.armed_restart: str | None = None
         self._cooldown_pending = False
         self._offline_screen: OfflineScreen | None = None
         # Commands are queued and sent by a background task. Awaiting a slow
@@ -522,6 +525,8 @@ class KlipperTUI(App):
         filename = (status.get("print_stats") or {}).get("filename") or None
         if filename == self._job_file:
             return
+        if filename and self.armed_restart and filename != self.armed_restart:
+            self.disarm_restart("another job started")
         self._job_file = filename
         self._job_meta = {}
         self.estimator.reset()
@@ -1303,9 +1308,19 @@ class KlipperTUI(App):
         elif bid == "st-pause":
             await self._job("print_pause", "Paused")
         elif bid == "st-resume":
-            await self._job("print_resume", "Resumed")
+            # While a restart is armed, Resume is what actually sends the job
+            # — and therefore what makes the printer move for the first time.
+            if self.armed_restart:
+                self.run_worker(self._start_armed(), group="job",
+                                exclusive=True)
+            else:
+                await self._job("print_resume", "Resumed")
         elif bid == "st-cancel":
-            await self._job("print_cancel", "Cancelled")
+            if self.armed_restart:
+                self.disarm_restart("cancelled")
+                self.notify("Restart cancelled", title="Restart job")
+            else:
+                await self._job("print_cancel", "Cancelled")
         elif bid == "st-restart":
             self.run_worker(self._restart_job(), group="job", exclusive=True)
 
@@ -1667,7 +1682,17 @@ class KlipperTUI(App):
         return None
 
     async def _restart_job(self) -> None:
-        """Stop the current job, load the same file again, and hold it paused."""
+        """Arm the same file again, without sending anything to the printer.
+
+        Starting the file is what homes the printer, and homing is what drives
+        the bed into whatever is still sitting on it. This used to call
+        print_start and then print_pause, which cannot help: by the time the
+        job reports itself as printing the start gcode has already run G28,
+        and Klipper will not abandon a homing move to honour a pause.
+
+        So nothing is sent. The file is remembered, and Resume starts it once
+        the bed has been cleared.
+        """
         stats = self.client.status.get("print_stats") or {}
         filename = stats.get("filename")
         if not filename:
@@ -1676,37 +1701,92 @@ class KlipperTUI(App):
 
         ok = await self.push_screen_wait(ConfirmScreen(
             "Restart job",
-            f"Cancel [b]{filename}[/b], start it again from the beginning, "
-            f"and pause immediately so you can get set before it prints?",
-            confirm_label="Restart job",
+            f"Load [b]{filename}[/b] again from the beginning.\n\n"
+            f"X and Y home now. Z does [b]not[/b] — homing Z raises the bed, "
+            f"and that is what drives the last print into the gantry.\n\n"
+            f"Clear the bed, then press [b]Resume[/b] to start.",
+            confirm_label="Arm restart",
             confirm_variant="-primary",
         ))
         if not ok:
             return
 
-        self._console_write("write_system", f"restarting {filename}")
         try:
-            if (stats.get("state")) in ("printing", "paused"):
+            if stats.get("state") in ("printing", "paused"):
                 await self.client.print_cancel()
-                # Klipper refuses a new job until the old one has finished
-                # unwinding, so wait for the state to settle.
                 if not await self._await_print_state(
                         ("cancelled", "standby", "complete", "error"), 30.0):
                     self.notify("Job did not stop in time",
                                 severity="error", title="Restart job")
                     return
-
-            await self.client.print_start(filename)
-            if not await self._await_print_state(("printing",), 30.0):
-                self.notify("Job did not start in time",
-                            severity="error", title="Restart job")
-                return
-
-            await self.client.print_pause()
-            self.notify(f"{filename} restarted and paused", title="Restart job")
         except MoonrakerError as exc:
             self._console_write("write_system", f"error: {exc}")
             self.notify(str(exc), severity="error", title="Restart job")
+            return
+
+        await self._home_xy_only()
+
+        self.armed_restart = filename
+        self._console_write(
+            "write_system",
+            f"{filename} armed — clear the bed, then Resume to start")
+        self.notify("Clear the bed, then press Resume",
+                    title="Restart armed", timeout=10)
+        self._refresh_job_buttons()
+
+    async def _home_xy_only(self) -> None:
+        """Home X and Y, deliberately not Z.
+
+        Neither axis moves the bed, so nothing can be crushed against the
+        gantry. Z stays where it is until the file runs its own G28, which is
+        after the bed has been cleared.
+
+        A little clearance first if there is room for it, so an XY move cannot
+        drag the nozzle through whatever is still on the plate. Skipped when Z
+        is not homed, since a relative move needs a known position, and capped
+        so it cannot run into the top of the axis.
+        """
+        toolhead = self.client.status.get("toolhead") or {}
+        homed = (toolhead.get("homed_axes") or "").lower()
+        position = toolhead.get("position") or []
+        maximum = toolhead.get("axis_maximum") or []
+        if "z" in homed and len(position) > 2 and len(maximum) > 2:
+            room = float(maximum[2]) - float(position[2]) - 1.0
+            lift = min(10.0, room)
+            if lift > 0.5:
+                await self.send(f"G91\nG1 Z{lift:.1f} F600\nG90")
+        await self.send("G28 X Y")
+
+    async def _start_armed(self) -> None:
+        """Send the armed job. This is the point at which the printer moves."""
+        filename = self.armed_restart
+        if not filename:
+            return
+        self.armed_restart = None
+        self._console_write("write_system", f"starting {filename}")
+        try:
+            await self.client.print_start(filename)
+        except MoonrakerError as exc:
+            self._console_write("write_system", f"error: {exc}")
+            self.notify(str(exc), severity="error", title="Restart job")
+            return
+        self.notify(f"{filename} started", title="Restart job")
+
+    def disarm_restart(self, why: str = "") -> None:
+        if not self.armed_restart:
+            return
+        self.armed_restart = None
+        self._console_write("write_system",
+                            f"restart cancelled{': ' + why if why else ''}")
+        self._refresh_job_buttons()
+
+    def _refresh_job_buttons(self) -> None:
+        """Nudge the status panels so Resume lights up while armed."""
+        status = self.client.status
+        for panel in self.query(StatusPanel):
+            self._guarded(f"{type(panel).__name__}.update_status",
+                          panel.update_status, status, self.client.klippy_state)
+
 
     async def _await_print_state(self, wanted: tuple[str, ...],
                                  timeout: float) -> bool:

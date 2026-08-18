@@ -1,6 +1,6 @@
 [project]
 name = "klipper-tui"
-version = "0.19.0"
+version = "0.20.0"
 description = "A terminal UI for Klipper 3D printers, via Moonraker"
 readme = "README.md"
 requires-python = ">=3.10"

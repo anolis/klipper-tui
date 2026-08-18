@@ -54,6 +54,13 @@ class StatusPanel(Vertical):
     def set_job_metadata(self, meta: dict) -> None:
         self.job_meta = meta or {}
 
+    def _armed(self) -> str | None:
+        """A job waiting for Resume, which has not been sent to the printer."""
+        try:
+            return self.app.armed_restart
+        except Exception:
+            return None
+
     def _remaining(self, stats: dict, sd: dict, elapsed: float,
                    progress: float) -> tuple[float, str]:
         """Time left, and one word for where the figure came from.
@@ -78,10 +85,13 @@ class StatusPanel(Vertical):
         """Only offer what the current job state actually allows."""
         printing = state == "printing"
         paused = state == "paused"
+        armed = bool(self._armed())
         enabled = {
             "st-pause": printing,
-            "st-resume": paused,
-            "st-cancel": printing or paused,
+            # Armed means the job is loaded but nothing has been sent; Resume
+            # is what starts it, and what makes the printer move.
+            "st-resume": paused or armed,
+            "st-cancel": printing or paused or armed,
             # Restarting needs a file to go back to, but the job itself may
             # already have stopped.
             "st-restart": has_file,
@@ -100,8 +110,11 @@ class StatusPanel(Vertical):
 
         state = stats.get("state") or klippy_state
         self._set_job_buttons(state, bool(stats.get("filename")))
+        armed = self._armed()
         self.query_one("#st-state", Static).update(
-            f"State  {state_markup(state)}"
+            f"State  {state_markup(state)}" + (
+                "   [$warning]armed — clear the bed, then Resume[/]"
+                if armed else "")
         )
 
         filename = stats.get("filename") or ""

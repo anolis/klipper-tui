@@ -271,6 +271,30 @@ Everything you legitimately reach for during a print goes straight through —
 temperatures, fans, speed and flow, babystepping the Z offset, and the job
 controls themselves.
 
+## Restarting a job
+
+Restart does **not** start the print. It homes X and Y, remembers the file,
+and waits — the status line reads `armed — clear the bed, then Resume`, and
+**Resume** is what actually sends the job.
+
+This is about Z. Homing Z raises the bed on a printer of this shape, so doing
+it with the last print still stuck to the plate drives that print up into the
+gantry. Nothing that moves the bed happens until you have had a chance to
+clear it.
+
+Pausing does not solve this, which is why it is done as an arming step
+instead: the start gcode homes before the job ever reports itself as printing,
+and Klipper will not abandon a homing move to honour a pause. The only way to
+not home is to not start the file.
+
+X and Y are homed on confirming, since neither moves the bed and it leaves the
+machine ready to go. If Z is homed and there is room above, the nozzle lifts a
+little first so an XY move cannot drag it through whatever is still on the
+plate; the lift is capped to the space available and skipped when Z's position
+is unknown.
+
+Cancel clears an armed restart without sending anything.
+
 ## Job control
 
 Pause, Resume, Cancel, and Restart sit on the Status panel, so they are on the
